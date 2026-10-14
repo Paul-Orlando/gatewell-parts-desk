@@ -27,6 +27,12 @@ app = FastAPI(title="Gatewell Employee App", version="0.1")
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
+@app.exception_handler(services.BadInput)
+async def bad_input(request: Request, ex: services.BadInput):
+    """An unknown filter value (warehouse, status, category): say what's valid instead of returning nothing."""
+    return JSONResponse(status_code=400, content={"detail": str(ex)})
+
+
 @app.middleware("http")
 async def demo_visitor_cookie(request: Request, call_next):
     """Give every browser a visitor ID so the demo question limit follows the visitor, not the sample employee."""
@@ -194,6 +200,21 @@ def chat(body: ChatIn, request: Request, emp: Employee = Depends(current_employe
     demo.record(visitor, ip)                     # only answered questions count toward the demo limit
     result["demo"] = demo.status(visitor, ip)
     return result
+
+
+class ConfirmCaseIn(BaseModel):
+    proposal_id: str
+
+
+@app.post("/api/cases/confirm")
+def confirm_case(body: ConfirmCaseIn, emp: Employee = Depends(current_employee)):
+    """The employee clicked Create case on a case the assistant prepared. This is the only way the chat opens a case."""
+    require(emp, "create_cases")
+    case = assistant.confirm_case(emp, body.proposal_id)
+    if not case:
+        raise HTTPException(404, "This case can't be created: it was already created, has expired, or was prepared "
+                                 "for someone else. Ask the assistant to prepare it again.")
+    return redact(case, emp)
 
 
 @app.get("/api/demo-status")

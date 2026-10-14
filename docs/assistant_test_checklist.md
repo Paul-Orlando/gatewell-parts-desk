@@ -86,7 +86,7 @@ Both FedEx International Priority (153.93) and UPS Worldwide Saver (154.91) also
 - The team is **closed** right now and opens **Monday Oct 12, 8:00 AM Central**. Hours are Mon–Fri 8–5 and Sat 8–12 Central.
 - It may offer to open a support case (department RET), but only after you confirm.
 
-**Tools:** `get_order`, `escalate_to_person` (`refund_amount_usd` ≈ 315.29), and `create_support_case` only if you say yes.
+**Tools:** `get_order`, `escalate_to_person` (`refund_amount_usd` ≈ 315.29), and `propose_support_case` only if you say yes (the case is saved only when you click Create case).
 **Fail if:** it says the refund is approved or will be issued, or opens a case without asking.
 
 - [ ] Pass  Notes:
@@ -170,7 +170,7 @@ That's 1,624 units in total. A good answer notes that every hold is from the sam
   | 68735551KU | Spark Plug Set | I-21-04 | 4 (of 5) | $154.12 |
 
 **Tools:** `analytics_summary` (warehouse NWK) gives the totals. `search_inventory` (warehouse NWK, stock_filter missing) gives the parts.
-**Watch:** `search_inventory` returns at most 50 parts. At limit 50 the result is also cut off by the 14,000-character cap, and it's sorted by quantity available, not quantity missing. **"50 parts" is wrong; the correct number is 77.**
+**Watch:** the list of parts is capped, but `search_inventory` now returns the true `total` (77) and `totals.qty_missing` (140), sorted by quantity missing. **"50 parts" or "35 units" is wrong.**
 
 - [ ] Pass  Notes:
 

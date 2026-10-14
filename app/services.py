@@ -13,7 +13,70 @@ STOCK_COLS = """part_id, part_number, part_name, brand, brand_type, quality_tier
 
 
 def _words(q: str) -> list[str]:
-    return [w for w in (q or "").replace(",", " ").split() if w]
+    return [_singular(w) for w in (q or "").replace(",", " ").split() if w]
+
+
+def _singular(w: str) -> str:
+    """Search words match as substrings, so 'plugs' must become 'plug' to find 'Spark Plug Set'
+    ('batteries' -> 'battery', 'rotors' -> 'rotor'). A part number keeps matching: 'TY-59862' is in 'TY-59862S'."""
+    if len(w) > 4 and w.lower().endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) > 3 and w.lower().endswith("s") and not w.lower().endswith("ss"):
+        return w[:-1]
+    return w
+
+
+# --------------------------------------------------------------------------- input checks
+class BadInput(ValueError):
+    """A filter value the data doesn't have. The message lists the valid choices, so a person or the
+    assistant can correct it instead of getting an empty result that looks like 'nothing found'."""
+
+
+# Names people use for a warehouse that aren't its code, city or name (LAX is in Ontario, CA; EWR is Newark's airport).
+WAREHOUSE_ALIASES = {"LOS ANGELES": "LAX", "LA": "LAX", "EWR": "NWK", "NEW JERSEY": "NWK", "DALLAS FORT WORTH": "DFW"}
+
+
+def _short_name(w: dict) -> str:
+    return w["warehouse_name"].replace(" Distribution Center", "").replace(" Depot", "")
+
+
+def warehouse_code(value: str | None) -> str | None:
+    """Accept a warehouse code, city or name ('NWK', 'Newark', 'Newark Distribution Center', 'Seattle')."""
+    if not value or not value.strip():
+        return None
+    v = " ".join(value.replace("-", " ").replace(",", " ").split()).upper()
+    whs = db.rows("SELECT warehouse_code, warehouse_name, city, state FROM warehouses ORDER BY warehouse_code")
+    for w in whs:
+        if v in (w["warehouse_code"], w["city"].upper(), w["warehouse_name"].upper(), _short_name(w).upper()):
+            return w["warehouse_code"]
+    if v in WAREHOUSE_ALIASES:
+        return WAREHOUSE_ALIASES[v]
+    raise BadInput(f"Unknown warehouse '{value}'. Use one of: " + ", ".join(
+        f"{w['warehouse_code']} ({_short_name(w)}" + (f", {w['city']}" if w["city"] != _short_name(w) else "") + f", {w['state']})"
+        for w in whs) + ".")
+
+
+def _choice(value: str | None, valid: list[str], what: str) -> str | None:
+    """Match a value to one of the valid choices, ignoring case and a trailing 's'."""
+    if value is None or not str(value).strip():
+        return None
+    v = str(value).strip().lower()
+    for c in valid:
+        if c.lower() in (v, v + "s", v.rstrip("s")):
+            return c
+    raise BadInput(f"Unknown {what} '{value}'. Use one of: {', '.join(valid)}.")
+
+
+def order_statuses() -> list[str]:
+    return [r["status"] for r in db.rows("SELECT DISTINCT status FROM orders ORDER BY status")]
+
+
+def categories() -> list[str]:
+    return [r["c"] for r in db.rows("""SELECT category_group c FROM parts UNION SELECT category FROM parts ORDER BY 1""")]
+
+
+STOCK_FILTERS = ["low", "out", "missing", "aged"]
+TRANSIT_STATUSES = ["In Transit", "Delayed", "Customs Hold"]
 
 
 # --------------------------------------------------------------------------- vehicles
@@ -33,7 +96,11 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
                      model: str | None = None, category: str | None = None, warehouse: str | None = None,
                      stock_filter: str | None = None, limit: int = 50) -> dict:
     """Parts matching a text search and/or vehicle, with stock totals (company-wide or one warehouse).
-    stock_filter: low (at or below reorder point), out (none available), missing (count shortfalls), aged (no activity 180+ days)."""
+    stock_filter: low (at or below reorder point), out (none available), missing (count shortfalls), aged (no activity 180+ days).
+    'count' is the rows returned; 'total' and 'totals' cover every match, so a capped list is never mistaken for all of it."""
+    warehouse = warehouse_code(warehouse)
+    category = _choice(category, categories(), "category")
+    stock_filter = _choice(stock_filter, STOCK_FILTERS, "stock filter")
     where, args = ["p.status = 'Active'"], []
     for w in _words(q):
         where.append("(s.part_number LIKE ? OR s.part_name LIKE ? OR s.brand LIKE ? OR s.fits_summary LIKE ? OR s.category LIKE ?)")
@@ -58,7 +125,7 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
         having = "HAVING SUM(s.qty_missing) > 0"
     elif stock_filter == "aged":
         having = "HAVING MIN(s.days_since_last_activity) >= 180 AND SUM(s.qty_on_hand) > 0"
-    sql = f"""
+    grouped = f"""
         SELECT s.part_id, s.part_number, s.part_name, s.brand, s.brand_type, s.quality_tier, s.category, s.fits_summary,
                s.size_class, s.weight_lb, s.hazmat, p.list_price_usd, p.unit_cost_usd,
                SUM(s.qty_on_hand) qty_on_hand, SUM(s.qty_available) qty_available, SUM(s.qty_reserved) qty_reserved,
@@ -68,10 +135,19 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
                MIN(s.days_since_last_activity) days_since_last_activity
         FROM v_stock_position s JOIN parts p USING (part_id)
         WHERE {' AND '.join(where)}
-        GROUP BY s.part_id {having}
-        ORDER BY qty_available DESC, s.part_number LIMIT ?"""
-    results = db.rows(sql, *args, int(limit))
-    return {"count": len(results), "warehouse": warehouse or "All warehouses", "results": results}
+        GROUP BY s.part_id {having}"""
+    order = {"missing": "qty_missing DESC, qty_available DESC", "low": "qty_available ASC, warehouses_needing_reorder DESC",
+             "aged": "days_since_last_activity DESC"}.get(stock_filter, "qty_available DESC")
+    results = db.rows(f"SELECT * FROM ({grouped}) ORDER BY {order}, part_number LIMIT ?", *args, int(limit))
+    t = db.one(f"""SELECT COUNT(*) parts, SUM(qty_on_hand) qty_on_hand, SUM(qty_available) qty_available,
+                          SUM(qty_in_transit) qty_in_transit, SUM(qty_missing) qty_missing, ROUND(SUM(stock_value_usd), 2) stock_value_usd
+                   FROM ({grouped})""", *args)
+    out = {"count": len(results), "total": t.pop("parts"), "totals": t, "warehouse": warehouse or "All warehouses",
+           "results": results}
+    if out["total"] > len(results):
+        out["note"] = (f"Showing {len(results)} of {out['total']} matching parts; 'totals' covers all of them. Don't add up "
+                       "or extrapolate the rows shown.")
+    return out
 
 
 def part_detail(emp: Employee, part_number: str) -> dict | None:
@@ -112,18 +188,23 @@ def part_detail(emp: Employee, part_number: str) -> dict | None:
 
 def in_transit(emp: Employee, warehouse: str | None = None, part_number: str | None = None,
                status: str | None = None, origin_country: str | None = None, limit: int = 50) -> dict:
+    warehouse = warehouse_code(warehouse)
+    status = _choice(status, TRANSIT_STATUSES, "shipment status")
     where, args = ["1=1"], []
-    if warehouse: where.append("destination_warehouse = ?"); args.append(warehouse.upper())
-    if part_number: where.append("part_number = ?"); args.append(part_number.upper())
+    if warehouse: where.append("destination_warehouse = ?"); args.append(warehouse)
+    if part_number: where.append("part_number = ?"); args.append(part_number.strip().upper())
     if status: where.append("status = ?"); args.append(status)
     if origin_country: where.append("origin_country LIKE ?"); args.append(f"%{origin_country}%")
-    shipments = db.rows(f"""SELECT shipment_id, shipment_type, po_number, transfer_number, origin_name, origin_city, origin_country,
-                                   destination_warehouse, mode, carrier, port_of_entry, ship_date_origin_local,
-                                   eta_destination_local, status, exception_note, currency,
-                                   COUNT(*) lines, SUM(quantity) units
-                            FROM v_in_transit WHERE {' AND '.join(where)}
-                            GROUP BY shipment_id ORDER BY eta_utc LIMIT ?""", *args, int(limit))
-    return {"count": len(shipments), "shipments": shipments}
+    grouped = f"""SELECT shipment_id, shipment_type, po_number, transfer_number, origin_name, origin_city, origin_country,
+                         destination_warehouse, mode, carrier, port_of_entry, ship_date_origin_local,
+                         eta_destination_local, status, exception_note, currency,
+                         COUNT(*) lines, SUM(quantity) units, MIN(eta_utc) eta_sort
+                  FROM v_in_transit WHERE {' AND '.join(where)} GROUP BY shipment_id"""
+    shipments = db.rows(f"{grouped} ORDER BY eta_sort LIMIT ?", *args, int(limit))
+    for s in shipments:
+        s.pop("eta_sort")
+    t = db.one(f"SELECT COUNT(*) shipments, SUM(units) units FROM ({grouped})", *args)
+    return {"count": len(shipments), "total": t["shipments"], "total_units": t["units"] or 0, "shipments": shipments}
 
 
 # --------------------------------------------------------------------------- orders
@@ -136,6 +217,10 @@ ORDER_LIST_COLS = """o.order_id, o.ordered_at_utc, o.ordered_at_local, o.order_t
 def search_orders(emp: Employee, q: str | None = None, status: str | None = None, order_type: str | None = None,
                   warehouse: str | None = None, customer_type: str | None = None, days: int | None = None,
                   limit: int = 50) -> dict:
+    warehouse = warehouse_code(warehouse)
+    status = _choice(status, order_statuses(), "order status")
+    order_type = _choice(order_type, ["Domestic", "International"], "order type")
+    customer_type = _choice(customer_type, ["Dealership", "Individual"], "customer type")
     where, args = ["1=1"], []
     sc, sa = scope_sql(emp, "o.fulfillment_warehouse")
     if q:
@@ -145,13 +230,18 @@ def search_orders(emp: Employee, q: str | None = None, status: str | None = None
         args += [qq.upper(), qq.upper(), qq, f"%{qq}%", qq.upper()]
     if status: where.append("o.status = ?"); args.append(status)
     if order_type: where.append("o.order_type = ?"); args.append(order_type)
-    if warehouse: where.append("o.fulfillment_warehouse = ?"); args.append(warehouse.upper())
+    if warehouse: where.append("o.fulfillment_warehouse = ?"); args.append(warehouse)
     if customer_type: where.append("o.customer_type = ?"); args.append(customer_type)
     if days:
         where.append("o.ordered_at_utc >= strftime('%Y-%m-%dT%H:%M:%SZ', ?, ?)"); args += [db.as_of().strftime("%Y-%m-%dT%H:%M:%SZ"), f"-{int(days)} days"]
-    res = db.rows(f"""SELECT {ORDER_LIST_COLS} FROM orders o JOIN customers c USING (customer_id)
-                      WHERE {' AND '.join(where)} {sc} ORDER BY o.ordered_at_utc DESC LIMIT ?""", *args, *sa, int(limit))
-    return {"count": len(res), "results": res}
+    base = f"FROM orders o JOIN customers c USING (customer_id) WHERE {' AND '.join(where)} {sc}"
+    res = db.rows(f"SELECT {ORDER_LIST_COLS} {base} ORDER BY o.ordered_at_utc DESC LIMIT ?", *args, *sa, int(limit))
+    total = db.scalar(f"SELECT COUNT(*) {base}", *args, *sa)
+    out = {"count": len(res), "total": total, "results": res}
+    if total > len(res):
+        out["note"] = (f"Showing the latest {len(res)} of {total} matching orders. These rows are a sample: don't add up, "
+                       "average or extrapolate them to describe all matches.")
+    return out
 
 
 def order_detail(emp: Employee, order_id: str) -> dict | None:
@@ -178,6 +268,10 @@ def order_detail(emp: Employee, order_id: str) -> dict | None:
 # --------------------------------------------------------------------------- support cases
 def list_cases(emp: Employee, status: str | None = None, department: str | None = None, q: str | None = None,
                limit: int = 100) -> dict:
+    department = _choice(department, [r["department_id"] for r in db.rows("SELECT department_id FROM support_departments")],
+                         "team (department)")
+    status = _choice(status, ["active"] + [r["status"] for r in db.rows("SELECT DISTINCT status FROM support_cases ORDER BY 1")],
+                     "case status")                # 'active' = everything not resolved
     where, args = ["1=1"], []
     if status == "active": where.append("sc.status <> 'Resolved'")
     elif status: where.append("sc.status = ?"); args.append(status)

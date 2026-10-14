@@ -9,6 +9,7 @@ from datetime import timedelta
 
 from . import db
 from .auth import Employee, scope_sql
+from .services import warehouse_code
 
 PERIODS = {"30": 30, "90": 90, "365": 365, "all": None}
 
@@ -27,6 +28,12 @@ def _scope(emp: Employee, warehouse: str | None, column: str):
 
 def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None) -> dict:
     days = PERIODS.get(period, 90)
+    warehouse = warehouse_code(warehouse)         # a code or city; unknown values are an error, not an empty dashboard
+    allowed = emp.warehouses()
+    note = None
+    if warehouse and allowed is not None and warehouse not in allowed:
+        note = f"{warehouse} is outside your view ({emp.scope_label()}), so this shows your own scope."
+        warehouse = None
     end = db.as_of()
     start = (end - timedelta(days=days)).strftime("%Y-%m-%dT%H:%M:%SZ") if days else "0000"
     si, sia = _scope(emp, warehouse, "s.warehouse_code")
@@ -52,7 +59,8 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None) -
     kpis = {**(inv or {}), **(sales or {}), "units_sold": units_sold or 0}
 
     return dict(
-        period=period, warehouse=warehouse, scope=emp.scope_label(), as_of=end.strftime("%Y-%m-%d %H:%M UTC"),
+        period=period, warehouse=warehouse or "All in your view", scope=emp.scope_label(), scope_note=note,
+        as_of=end.strftime("%Y-%m-%d %H:%M UTC"),
         kpis=kpis,
         inventory_by_group=db.rows(f"""SELECT s.category_group label, SUM(s.qty_on_hand) units, SUM(s.qty_available) available,
                                               ROUND(SUM(s.stock_value_usd)) stock_value_usd
@@ -81,6 +89,11 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None) -
                                           ROUND(SUM(CASE WHEN order_type = 'International' THEN order_total_usd ELSE 0 END)) international_revenue_usd,
                                           COUNT(*) orders, ROUND(SUM(carrier_cost_usd)) carrier_cost_usd, ROUND(SUM(shipping_usd)) shipping_usd
                                    FROM orders o WHERE o.status <> 'Cancelled' {so} GROUP BY 1 ORDER BY 1""", *soa),
+        # whole-history quarters, already added up, so "sales in Q2" can be answered for every year without arithmetic
+        sales_by_quarter=db.rows(f"""SELECT substr(o.ordered_at_utc, 1, 4) || '-Q' || ((CAST(substr(o.ordered_at_utc, 6, 2) AS INTEGER) + 2) / 3) label,
+                                            COUNT(*) orders, ROUND(SUM(order_total_usd)) revenue_usd,
+                                            MIN(substr(o.ordered_at_utc, 1, 10)) first_order_date, MAX(substr(o.ordered_at_utc, 1, 10)) last_order_date
+                                     FROM orders o WHERE o.status <> 'Cancelled' {so} GROUP BY 1 ORDER BY 1""", *soa),
         revenue_by_region=db.rows(f"""SELECT o.ship_to_region label, COUNT(*) orders, ROUND(SUM(order_total_usd)) revenue_usd
                                       FROM orders o WHERE o.status <> 'Cancelled' AND o.ordered_at_utc >= ? {so}
                                       GROUP BY 1 ORDER BY revenue_usd DESC""", start, *soa),

@@ -217,7 +217,7 @@ async function viewInventory() {
     try {
       const d = await api(`/api/inventory?${qs({ ...st, limit: 100 })}`);
       const cost = S.emp.can_see_cost;
-      $("#inv-results").innerHTML = `<p class="result-count">${n(d.count)} parts${d.count === 100 ? " (first 100 shown; narrow the search to see more)" : ""}, stock at ${esc(d.warehouse)}</p>` +
+      $("#inv-results").innerHTML = `<p class="result-count">${n(d.total)} parts${d.total > d.count ? ` (first ${n(d.count)} shown; narrow the search to see more)` : ""}, stock at ${esc(d.warehouse)}</p>` +
         (d.count ? `<div class="table-wrap"><table><thead><tr><th>Part</th><th>Fits</th><th>Stock</th><th class="num">Available</th><th class="num">On hand</th><th class="num">In transit</th><th class="num">Backordered</th><th class="num">Missing</th><th class="num">List price</th>${cost ? '<th class="num">Stock value</th>' : ""}</tr></thead><tbody>
         ${d.results.map((r) => `<tr class="clickable" data-pn="${esc(r.part_number)}" tabindex="0">
           <td><div class="pn">${esc(r.part_number)}</div><div>${esc(r.part_name)}</div><div class="muted small">${esc(r.brand)}${r.quality_tier !== "OEM" ? `, ${esc(r.quality_tier)}` : ""}${r.hazmat ? ", hazmat" : ""}</div></td>
@@ -320,7 +320,7 @@ async function viewOrders() {
     $("#ord-results").innerHTML = '<p class="empty">Searching…</p>';
     const d = await api(`/api/orders?${qs({ ...st, days: st.q ? "" : st.days, limit: 100 })}`);
     const m = S.emp.can_see_money, c = S.emp.can_see_customer;
-    $("#ord-results").innerHTML = `<p class="result-count">${n(d.count)} orders${d.count === 100 ? " (latest 100)" : ""}</p>` + (d.count ? `
+    $("#ord-results").innerHTML = `<p class="result-count">${n(d.total)} orders${d.total > d.count ? ` (latest ${n(d.count)} shown)` : ""}</p>` + (d.count ? `
       <div class="table-wrap"><table><thead><tr><th>Order</th><th>Placed (customer time)</th><th>Customer</th><th>Ship to</th><th>From</th><th>Status</th><th>Carrier</th>${m ? '<th class="num">Total</th>' : ""}</tr></thead><tbody>
       ${d.results.map((o) => `<tr class="clickable" data-id="${esc(o.order_id)}" tabindex="0"><td class="pn">${esc(o.order_id)}</td><td class="small">${esc((o.ordered_at_local || "").replace("T", " "))}</td>
         <td>${c ? esc(o.customer_name) : esc(o.customer_id)}<div class="muted small">${esc(o.customer_type)}, ${esc(o.order_type)}</div></td>
@@ -400,7 +400,7 @@ async function viewCases() {
 /* ------------------------------------------------------------------ assistant */
 const TOOL_LABEL = { search_inventory: "inventory search", get_part_details: "part details", find_in_transit: "inbound shipments", search_orders: "order search",
   get_order: "order details", get_part_price: "part price", quote_shipping: "shipping rates", full_quote: "customer total", list_support_cases: "support cases",
-  analytics_summary: "analytics", search_faq: "FAQ", contact_team: "team contacts", escalate_to_person: "handoff to a person", create_support_case: "new support case" };
+  analytics_summary: "analytics", search_faq: "FAQ", contact_team: "team contacts", escalate_to_person: "handoff to a person", propose_support_case: "new support case" };
 
 function md(text) {
   const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/`([^`]+)`/g, '<span class="pn">$1</span>')
@@ -439,11 +439,25 @@ function handoffCard(h) {
     <div class="small"><a href="${esc(c.faq_page)}" target="_blank" rel="noopener">Full FAQ page</a></div></div>`;
 }
 
+/* A case the assistant prepared. Nothing is saved until the employee clicks Create case. */
+function caseCard(c, i) {
+  const facts = `<div class="small">${esc(c.customer_name || c.customer_id)} (${esc(c.customer_id)})${c.order_id ? `, order ${esc(c.order_id)}` : ""}</div>
+    <div>${esc(c.contact_reason)}</div>${c.notes ? `<div class="small muted">${esc(c.notes)}</div>` : ""}`;
+  if (c.created) return `<div class="handoff"><h4>Support case ${esc(c.created.case_id)} created</h4>${facts}
+    <div class="small"><span class="status good">&#10003; ${esc(c.created.status)}</span> ${esc(c.created.department)}, ${esc(c.created.phone)}</div></div>`;
+  if (c.cancelled) return `<div class="handoff"><h4>Case not created</h4>${facts}</div>`;
+  return `<div class="handoff"><h4>New support case for ${esc(c.department)}</h4>${facts}
+    <div class="small muted" style="margin:4px 0 8px">Not saved yet. Check the details, then create it.</div>
+    ${c.error ? `<p class="small" role="alert">${esc(c.error)}</p>` : ""}
+    <button class="btn small" type="button" data-case-create="${i}">Create case</button>
+    <button class="btn ghost small" type="button" data-case-cancel="${i}">Cancel</button></div>`;
+}
+
 function renderChat() {
   const log = $("#chat-log");
-  log.innerHTML = S.chat.length ? S.chat.map((m) => m.role === "user" ? `<div class="msg user">${esc(m.content)}</div>` : `<div class="msg bot"><div class="who">Assistant</div>${md(m.content)}
+  log.innerHTML = S.chat.length ? S.chat.map((m, i) => m.role === "user" ? `<div class="msg user">${esc(m.content)}</div>` : `<div class="msg bot"><div class="who">Assistant</div>${md(m.content)}
     ${m.tools && m.tools.length ? `<div class="lookups">${[...new Set(m.tools.map((t) => TOOL_LABEL[t.tool] || t.tool))].map((t) => `<span>Checked ${esc(t)}</span>`).join("")}</div>` : ""}
-    ${m.handoff ? handoffCard(m.handoff) : ""}</div>`).join("")
+    ${m.handoff ? handoffCard(m.handoff) : ""}${m.pending_case ? caseCard(m.pending_case, i) : ""}</div>`).join("")
     : `<div class="msg bot"><div class="who">Assistant</div><p>Hi ${esc(S.emp.name.split(" ")[0])}. Ask me about parts, stock, orders, shipping costs or company policy. I look everything up in company data, and if I can't answer I'll tell you who can.</p></div>`;
   log.scrollTop = log.scrollHeight;
 }
@@ -479,7 +493,8 @@ async function viewAssistant() {
     $("#chat-log").insertAdjacentHTML("beforeend", '<div class="msg bot typing" id="typing">Looking that up…</div>');
     try {
       const r = await api("/api/chat", { method: "POST", body: { messages: S.chat.map(({ role, content }) => ({ role, content })) } });
-      S.chat.push({ role: "assistant", content: r.reply || "I couldn't find an answer.", tools: r.tools_used, handoff: r.handoff });
+      S.chat.push({ role: "assistant", content: r.reply || "I couldn't find an answer.", tools: r.tools_used, handoff: r.handoff,
+                    pending_case: r.pending_case });
       if (r.demo) renderDemo(r.demo);
     } catch (e) {
       if (e.status === 429) { S.chat.push({ role: "assistant", content: e.message }); renderDemo(e.data && e.data.demo); }
@@ -492,6 +507,18 @@ async function viewAssistant() {
   f.onsubmit = (e) => { e.preventDefault(); send(f.m.value); };
   f.m.onkeydown = (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(f.m.value); } };
   $("#chat-clear").onclick = () => { S.chat = []; sessionStorage.removeItem("gw_chat"); renderChat(); };
+  $("#chat-log").onclick = async (e) => {
+    const b = e.target.closest("[data-case-create], [data-case-cancel]"); if (!b) return;
+    const c = S.chat[Number(b.dataset.caseCreate ?? b.dataset.caseCancel)].pending_case;
+    if (b.dataset.caseCancel !== undefined) c.cancelled = true;
+    else {
+      b.disabled = true;
+      try { c.created = await api("/api/cases/confirm", { method: "POST", body: { proposal_id: c.proposal_id } }); c.error = null; }
+      catch (err) { c.error = err.message; }
+    }
+    sessionStorage.setItem("gw_chat", JSON.stringify(S.chat));
+    renderChat();
+  };
   const s = await api("/api/assistant/suggestions");
   $("#sugg").innerHTML = s.suggestions.map((x) => `<button class="suggestion" type="button">${esc(x)}</button>`).join("");
   renderDemo(await api("/api/demo-status"));

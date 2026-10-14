@@ -60,9 +60,9 @@ def test_role_only_gets_its_tools(ids):
     wh = {t["name"] for t in assistant.tools_for(load_employee(ids["warehouse"]))}
     cs = {t["name"] for t in assistant.tools_for(load_employee(ids["cs"]))}
     mgr = {t["name"] for t in assistant.tools_for(load_employee(ids["director"]))}
-    assert "full_quote" not in wh and "analytics_summary" not in wh and "create_support_case" not in wh
-    assert "full_quote" in cs and "create_support_case" in cs and "analytics_summary" not in cs
-    assert "analytics_summary" in mgr and "create_support_case" not in mgr
+    assert "full_quote" not in wh and "analytics_summary" not in wh and "propose_support_case" not in wh
+    assert "full_quote" in cs and "propose_support_case" in cs and "analytics_summary" not in cs
+    assert "analytics_summary" in mgr and "propose_support_case" not in mgr
 
 
 def test_blocked_tool_call_is_refused(ids):

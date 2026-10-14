@@ -31,7 +31,7 @@ So the assistant can never know more, or say something different, than the scree
    - **Region:** the warehouses in their region.
    - **Company:** all warehouses.
 3. **The service function runs SQL** limited to that scope, on a **read-only** database connection.
-4. **`auth.redact` removes every field the role may not see,** at any depth of the response. Examples: costs and margins for non-managers; prices, totals and payments for warehouse staff; customer names for warehouse staff.
+4. **`auth.redact` keeps only the fields the role may see,** at any depth of the response. Every field name is classified as public, cost, money or customer; anything unclassified is hidden from restricted roles (it fails closed). Examples: costs and margins for non-managers; customer prices, shipping charges, totals and payments for warehouse staff; customer names for warehouse staff. The public list price is visible to everyone.
 5. **The response goes back to the browser.**
 
 ## The assistant
@@ -39,8 +39,8 @@ So the assistant can never know more, or say something different, than the scree
 `assistant.chat()` runs the model's tool-use loop. The model is Gemini 3.1 Flash-Lite through OpenRouter's OpenAI-compatible API, and the only model-specific code is the small `OpenRouterClient` in `assistant.py`.
 
 1. **Build the system prompt.** It covers who the employee is, their role and scope, what they can't see, the data's as-of time, how to answer, and when to bring in a person.
-2. **Offer only the tools this role may use.** For example, warehouse staff don't get `full_quote` or `analytics_summary`, and only customer service can `create_support_case`.
-3. **For each tool the model asks for,** run it as this employee, redact the result for their role, and cap its size. Then send the result back.
+2. **Offer only the tools this role may use.** For example, warehouse staff don't get `full_quote` or `analytics_summary`, and only customer service can `propose_support_case`.
+3. **For each tool the model asks for,** run it as this employee, redact the result for their role, and cap its size by dropping whole rows (with a `_shortened` note; counts and totals still cover everything). Then send the result back. Unknown filter values (a warehouse, status or category the data doesn't have) come back as an error listing the valid choices, never as an empty result.
 4. **Stop** when the model answers, or after 8 rounds. If OpenRouter fails, retry once, then show a clear "assistant unavailable" message; the other tabs keep working.
 5. **Write an audit record:** employee, role, model, question, tools used, whether it handed off, tokens, and time taken.
 
@@ -60,7 +60,7 @@ In the demo version, `demo.py` allows 5 answered questions per visitor, counted 
 | `search_faq` | Policy answers with links | All |
 | `contact_team` | A team's phone, email, hours, open now / next opening in local time | All |
 | `escalate_to_person` | Hand off: the right team, how to reach them, FAQ links | All |
-| `create_support_case` | Open a case for a specialist to follow up | CS, CS supervisor |
+| `propose_support_case` | Prepare a case for a specialist to follow up. Nothing is saved until the employee clicks Create case in the chat | CS, CS supervisor |
 
 The assistant has **no** tool that changes inventory, orders, prices, refunds or payments.
 
