@@ -40,7 +40,7 @@ So the assistant can never know more, or say something different, than the scree
 
 1. **Build the system prompt.** It covers who the employee is, their role and scope, what they can't see, the data's as-of time, how to answer, and when to bring in a person.
 2. **Offer only the tools this role may use.** For example, warehouse staff don't get `full_quote` or `analytics_summary`, and only customer service can `propose_support_case`.
-3. **For each tool the model asks for,** run it as this employee, redact the result for their role, and cap its size by dropping whole rows (with a `_shortened` note; counts and totals still cover everything). Then send the result back. Unknown filter values (a warehouse, status or category the data doesn't have) come back as an error listing the valid choices, never as an empty result.
+3. **For each tool the model asks for,** run it as this employee, redact the result for their role, and cap its size by dropping whole rows (with a `_shortened` note; counts and totals still cover everything). Then send the result back. Unknown filter values (a warehouse, status or category the data doesn't have) come back as an error listing the valid choices, never as an empty result. Tool schemas give the model the valid values up front: warehouse codes and analytics section names are enums, and the system prompt lists every warehouse with its city.
 4. **Stop** when the model answers, or after 8 rounds. If OpenRouter fails, retry once, then show a clear "assistant unavailable" message; the other tabs keep working.
 5. **Write an audit record:** employee, role, model, question, tools used, whether it handed off, tokens, and time taken.
 

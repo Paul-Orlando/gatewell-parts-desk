@@ -6,8 +6,8 @@ In the demo version, each visitor can ask the assistant a fixed number of questi
 so reloading the page or switching to another sample employee doesn't reset it. A second,
 higher limit per network address stops someone from resetting it by clearing cookies.
 
-Only answered questions count: a request that fails or finds the assistant switched off
-doesn't use up a question.
+Only answered questions count: a request that fails, finds the assistant switched off, or
+ends with "I couldn't finish looking that up" (the tool-round limit) doesn't use up a question.
 
 Settings (environment variables):
     GATEWELL_DEMO_MODE        1 = demo limits on (default), 0 = off

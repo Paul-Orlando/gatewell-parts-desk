@@ -13,6 +13,28 @@ from .services import warehouse_code
 
 PERIODS = {"30": 30, "90": 90, "365": 365, "all": None}
 
+# Every data section dashboard() returns, with a one-line description for the assistant's tool definition.
+# tests/test_inputs.py checks this matches dashboard(), so a new section can't be left out.
+SECTIONS = {
+    "kpis": "Headline totals: units on hand, available, in transit, missing (units and value at cost), SKUs to reorder, "
+            "stock value, orders, revenue, shipping cost, FX gain or loss",
+    "inventory_by_warehouse": "Per warehouse: units on hand, in transit, missing units and missing value at cost, "
+                              "SKUs to reorder, stock value. Use this to compare warehouses",
+    "inventory_by_group": "Per category: units on hand, available, stock value",
+    "missing_by_group": "Missing stock per category: units and value at cost",
+    "low_stock": "Top 15 parts at or below reorder point, with days of cover",
+    "stock_aging": "Stock by days since last activity (0-30, 31-90, 91-180, 180+)",
+    "sales_by_month": "Every month: domestic and international revenue, orders, carrier cost, shipping charged",
+    "sales_by_quarter": "Every quarter of every year (e.g. 2025-Q2, 2026-Q2): orders and revenue, already totalled",
+    "revenue_by_region": "Orders and revenue by customer region (selected period)",
+    "revenue_by_country": "International orders, revenue, billed amount and FX gain or loss by country (selected period)",
+    "sales_by_group": "Units sold and revenue by category (selected period)",
+    "top_parts": "Top 10 parts by revenue (selected period)",
+    "price_by_group": "Average list price by category and tier (OEM, Premium, Value)",
+    "shipping_by_carrier": "Orders, average carrier cost and average charged per carrier (selected period)",
+    "shipping_by_service": "Orders and average cost and charge per shipping service (selected period)",
+}
+
 
 def _scope(emp: Employee, warehouse: str | None, column: str):
     sc, sa = scope_sql(emp, column)
@@ -66,9 +88,10 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None) -
                                               ROUND(SUM(s.stock_value_usd)) stock_value_usd
                                        FROM v_stock_position s WHERE 1=1 {si} GROUP BY 1 ORDER BY units DESC""", *sia),
         inventory_by_warehouse=db.rows(f"""SELECT s.warehouse_code label, SUM(s.qty_on_hand) units, SUM(s.qty_in_transit) in_transit,
-                                                  SUM(s.qty_missing) missing, SUM(s.needs_reorder) needs_reorder,
-                                                  ROUND(SUM(s.stock_value_usd)) stock_value_usd
-                                           FROM v_stock_position s WHERE 1=1 {si} GROUP BY 1 ORDER BY units DESC""", *sia),
+                                                  SUM(s.qty_missing) missing, ROUND(SUM(s.qty_missing * i.unit_cost_usd)) missing_value_usd,
+                                                  SUM(s.needs_reorder) needs_reorder, ROUND(SUM(s.stock_value_usd)) stock_value_usd
+                                           FROM v_stock_position s JOIN inventory i USING (part_id, warehouse_code)
+                                           WHERE 1=1 {si} GROUP BY 1 ORDER BY units DESC""", *sia),
         stock_aging=db.rows(f"""SELECT CASE WHEN days_since_last_activity <= 30 THEN '0-30 days'
                                             WHEN days_since_last_activity <= 90 THEN '31-90 days'
                                             WHEN days_since_last_activity <= 180 THEN '91-180 days' ELSE '180+ days' END label,

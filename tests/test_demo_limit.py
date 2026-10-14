@@ -70,3 +70,20 @@ def test_demo_mode_off_has_no_limit(demo_env, ids):
     c = TestClient(app)
     assert all(ask(c, ids["cs"]).status_code == 200 for _ in range(7))
     assert c.get("/api/demo-status", headers=headers(ids["cs"])).json() == {"enabled": False}
+
+
+class NeverFinishes:
+    """Stand-in model that keeps asking for another lookup, so every question hits the tool-round limit."""
+    def complete(self, payload):
+        call = {"id": "c1", "type": "function", "function": {"name": "search_faq", "arguments": '{"question": "returns"}'}}
+        return {"choices": [{"message": {"role": "assistant", "content": None, "tool_calls": [call]}}]}
+
+
+def test_reply_cut_off_by_the_round_limit_does_not_count(demo_env, ids):
+    demo_env.setattr(assistant, "_get_client", lambda: NeverFinishes())
+    c = TestClient(app)
+    r = ask(c, ids["cs"]).json()
+    assert "couldn't finish" in r["reply"] and r["finished"] is False
+    assert r["demo"]["remaining"] == 5
+    demo_env.setattr(assistant, "_get_client", lambda: AlwaysAnswers())
+    assert ask(c, ids["cs"]).json()["demo"]["remaining"] == 4          # a finished answer still counts

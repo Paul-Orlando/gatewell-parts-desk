@@ -78,3 +78,35 @@ def test_plural_search_words_find_singular_part_names(ids):
         assert a > 0 and a == services.search_inventory(emp, q=singular)["total"], plural
     pn = db.scalar("SELECT part_number FROM parts WHERE status = 'Active' AND part_number LIKE '%S' LIMIT 1")
     assert any(r["part_number"] == pn for r in services.search_inventory(emp, q=pn)["results"])   # part numbers still match
+
+
+# --------------------------------------------------------------------------- analytics sections (live test fix F)
+META = {"period", "warehouse", "scope", "scope_note", "as_of", "warehouses"}
+
+
+def test_analytics_sections_list_matches_the_dashboard(ids):
+    from app import analytics
+    d = analytics.dashboard(load_employee(ids["director"]), "all")
+    assert set(d) - META == set(analytics.SECTIONS)
+    schema = assistant.TOOL_BY_NAME["analytics_summary"]["schema"]["properties"]["sections"]
+    assert schema["items"]["enum"] == list(analytics.SECTIONS)
+    desc = assistant.TOOL_BY_NAME["analytics_summary"]["description"]
+    assert all(f"{k}: " in desc for k in analytics.SECTIONS)
+
+
+def test_unknown_analytics_section_is_rejected(ids):
+    text, is_err = assistant.run_tool(load_employee(ids["director"]), "analytics_summary", {"sections": ["missing_by_warehouse"]})
+    assert is_err and "Unknown analytics section" in text and "inventory_by_warehouse" in text
+
+
+def test_missing_value_per_warehouse_for_cost_roles_only(ids):
+    expected = db.one("""SELECT SUM(qty_missing) units, ROUND(SUM(qty_missing * unit_cost_usd)) value
+                         FROM inventory WHERE warehouse_code = 'NWK'""")
+    d = json.loads(assistant.run_tool(load_employee(ids["director"]), "analytics_summary",
+                                      {"period": "all", "sections": ["inventory_by_warehouse"]})[0])
+    nwk = next(r for r in d["inventory_by_warehouse"] if r["label"] == "NWK")
+    assert nwk["missing"] == expected["units"] == 140 and nwk["missing_value_usd"] == expected["value"]
+    assert max(d["inventory_by_warehouse"], key=lambda r: r["missing"])["label"] == "NWK"
+    sup = json.loads(assistant.run_tool(load_employee(ids["cs_sup"]), "analytics_summary",
+                                        {"period": "all", "sections": ["inventory_by_warehouse"]})[0])
+    assert all("missing_value_usd" not in r and "missing" in r for r in sup["inventory_by_warehouse"])

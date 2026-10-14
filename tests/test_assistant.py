@@ -137,3 +137,38 @@ def test_openrouter_server_errors_retry_once(monkeypatch):
     with pytest.raises(assistant.AssistantUnavailable):
         assistant.OpenRouterClient("k").complete({})
     assert len(calls) == 2
+
+
+# --------------------------------------------------------------------------- live test 2026-10-14 fixes
+def test_every_warehouse_parameter_is_an_enum_of_the_real_codes():
+    from app import db
+    codes = [r["warehouse_code"] for r in db.rows("SELECT warehouse_code FROM warehouses ORDER BY warehouse_code")]
+    with_wh = {t["name"]: t["schema"]["properties"]["warehouse"] for t in assistant.TOOLS
+               if "warehouse" in t["schema"].get("properties", {})}
+    assert set(with_wh) == {"search_inventory", "find_in_transit", "search_orders", "analytics_summary"}
+    assert all(p["enum"] == codes for p in with_wh.values())
+
+
+def test_prompt_lists_every_warehouse_code(ids):
+    from app import db
+    prompt = assistant.system_prompt(load_employee(ids["director"]))
+    for code in (r["warehouse_code"] for r in db.rows("SELECT warehouse_code FROM warehouses")):
+        assert f" {code} " in prompt
+    assert "ORD Chicago" in prompt and "LAX Inland Empire (Ontario, CA, also Los Angeles)" in prompt
+
+
+def test_guessed_warehouse_code_is_rejected_with_the_valid_list(ids):
+    text, is_err = assistant.run_tool(load_employee(ids["director"]), "analytics_summary", {"warehouse": "CHI", "sections": ["kpis"]})
+    assert is_err and "Unknown warehouse 'CHI'" in text and "ORD (Chicago, IL)" in text
+
+
+def test_prompt_rules_from_the_live_test(ids):
+    p = {role: assistant.system_prompt(load_employee(ids[role])) for role in ("cs", "cs_sup", "warehouse", "director")}
+    for text in p.values():
+        assert "You are talking to an employee, not the customer" in text and "You can tell the customer" in text   # B
+        assert "list the options before quoting one, or ask which one" in text                                    # A
+        assert "say what they can\n  see instead and offer it" in text                                              # D
+        assert "Prefer one broad lookup over many narrow ones" in text and "request them together" in text          # G
+    offer = "Want me to open a support case?"                                                                       # C
+    assert offer in p["cs"] and offer in p["cs_sup"]
+    assert offer not in p["warehouse"] and offer not in p["director"]

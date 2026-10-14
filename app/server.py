@@ -197,7 +197,8 @@ def chat(body: ChatIn, request: Request, emp: Employee = Depends(current_employe
         result = assistant.chat(emp, body.messages)
     except assistant.AssistantUnavailable as ex:
         return {"reply": str(ex), "tools_used": [], "handoff": None, "unavailable": True, "demo": limits}
-    demo.record(visitor, ip)                     # only answered questions count toward the demo limit
+    if result.get("finished"):
+        demo.record(visitor, ip)                 # only answered questions count; a reply cut off by the round limit doesn't
     result["demo"] = demo.status(visitor, ip)
     return result
 
