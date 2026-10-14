@@ -46,8 +46,10 @@ PERMISSIONS = {
                              customer=True, analytics=True, cases=True, create_cases=False),
 }
 
-# Fields removed from every response unless the role is allowed to see them. The public list price
-# (list_price_usd) stays visible to everyone; a customer's own price does not.
+# Every field name the app returns is classified into exactly one of four groups. PUBLIC_FIELDS are visible to
+# every role; the other three need the matching permission. A field in no group is hidden from any role that
+# lacks a permission (it fails closed), and tests/test_permissions.py fails until a new field is classified.
+# The public list price (list_price_usd) stays visible to everyone; a customer's own price does not.
 COST_FIELDS = {"unit_cost_usd", "unit_cost_local", "stock_value_usd", "carrier_cost_usd", "shipping_margin_usd",
                "po_value_usd", "po_value_local", "fx_gain_loss_usd", "variance_value_usd", "missing_value_usd",
                "inventory_value_usd",
@@ -61,8 +63,67 @@ MONEY_FIELDS = {"unit_price_usd", "unit_price_local", "line_total_usd", "line_to
                 "subtotal_usd", "subtotal_local", "core_charge_local",
                 # shipping charges (quote_shipping): totals and the per-package breakdown
                 "cost_usd", "cost_local", "customer_pays_usd", "transportation_usd", "fuel_surcharge_usd",
-                "package_total_usd", "surcharges"}
+                "package_total_usd", "surcharges",
+                # a customer's total (full_quote), only offered to roles with prices but classified here too
+                "full_quote", "parts", "shipping", "import_tax", "core_charges",
+                # sales figures (analytics)
+                "avg_order_value_usd", "avg_charged_usd", "billed_local", "domestic_revenue_usd",
+                "international_revenue_usd", "international_revenue_pct"}
 CUSTOMER_FIELDS = {"customer_name", "primary_vehicle_id", "customer_since"}
+PUBLIC_FIELDS = {
+    # parts and fitment
+    "part", "part_id", "part_number", "part_name", "brand", "brand_type", "quality_tier", "condition", "category",
+    "category_group", "position", "oem_family", "fits", "fits_key", "fits_scope", "fits_summary", "make", "model",
+    "engines", "year_from", "year_to", "status", "superseded_by_part_id", "supersession_date", "replacement",
+    "equivalents", "equivalent_parts", "list_price_usd", "note", "found", "hazmat", "hazmat_note", "size_class",
+    "shipping_class", "weight_lb", "weight_kg", "length_cm", "width_cm", "height_cm", "primary_supplier_id",
+    "supplier", "supplier_name", "city", "country", "state", "region", "timezone",
+    # stock
+    "stock_by_warehouse", "warehouse", "warehouses", "warehouse_code", "warehouse_city", "warehouse_state",
+    "bin_location", "qty_on_hand", "qty_available", "qty_reserved", "qty_in_transit", "qty_backordered",
+    "qty_missing", "qty_damaged", "reorder_point", "reorder_qty", "avg_daily_demand", "needs_reorder",
+    "days_since_last_activity", "days_of_cover", "last_received_utc", "last_sold_utc", "last_counted_utc",
+    "warehouses_needing_reorder", "warehouses_stocking", "in_stock_total", "totals", "on_hand", "available",
+    "missing", "backordered", "monthly_sales", "order_month", "units",
+    # inbound shipments
+    "in_transit", "shipments", "shipment_id", "shipment_type", "po_number", "transfer_number", "origin_name",
+    "origin_city", "origin_country", "destination_warehouse", "mode", "carrier", "port_of_entry",
+    "ship_date_origin_local", "eta_destination_local", "exception_note", "currency", "lines", "quantity",
+    "total_units",
+    # orders
+    "order", "order_id", "customer", "customer_id", "customer_type", "franchise_make", "order_type", "channel",
+    "ordered_at_utc", "ordered_at_local", "shipped_at_utc", "delivered_at_utc", "delivered_at_local",
+    "customer_timezone", "fulfillment_warehouse", "ship_to_city", "ship_to_state", "ship_to_region",
+    "ship_to_country", "ship_to_country_code", "ship_mode", "carrier_service", "carrier_service_code",
+    "tracking_number", "customs_status", "export_documents", "incoterm", "import_tax_name", "import_tax_pct",
+    "import_tax_paid_by", "fx_rate_date", "line_no", "line_status", "core_status", "for_vehicle",
+    "country_of_origin", "hs_code", "usmca_eligible", "support_cases",
+    # shipping quotes
+    "ok", "message", "faq", "ship_from", "ship_to", "zone", "residential", "package_count", "total_weight_lb",
+    "options", "service", "service_code", "speed", "transit_business_days", "ships_on", "estimated_delivery_by",
+    "delivery_by", "packages", "package", "billable_weight_lb", "dimensions_in", "unavailable", "reason",
+    "notes", "disclaimer",
+    # support cases, teams, FAQ and handoffs
+    "case_id", "opened_at_utc", "opened_at_customer_local", "opened_at_hq_local", "ai_handoff_reason",
+    "opened_after_hours", "department", "department_id", "department_name", "contact_reason", "language",
+    "priority", "assigned_to", "assigned_name", "first_response_at_utc", "first_response_minutes",
+    "resolved_at_utc", "status_counts", "n", "proposal_id", "expires_in_minutes", "contact", "phone", "email",
+    "languages", "handles", "open_now", "closes_at", "next_open", "hours_central", "main_phone",
+    "international_phone", "main_email", "faq_page", "matches", "question", "answer", "url", "score", "handoff",
+    "reasons", "reason_given", "faq_suggestions", "interpreter_needed", "message_to_customer", "case_status",
+    # analytics layout and stock figures (money and cost figures are classified above)
+    "period", "scope", "scope_note", "as_of", "kpis", "label", "orders", "units_on_hand", "units_available",
+    "units_in_transit", "units_missing", "units_backordered", "units_sold", "skus_needing_reorder",
+    "skus_out_of_stock", "skus_stocked", "inventory_by_group", "inventory_by_warehouse", "low_stock",
+    "missing_by_group", "stock_aging", "sales_by_month", "sales_by_quarter", "first_order_date",
+    "last_order_date", "sales_by_group", "revenue_by_region",
+    "revenue_by_country", "top_parts", "price_by_group", "oem_avg_price_usd", "premium_avg_price_usd",
+    "value_avg_price_usd", "shipping_by_carrier", "shipping_by_service",
+    # result framing
+    "count", "total", "results", "_shortened",
+}
+# Fields whose value is a map keyed by data (e.g. surcharge name -> amount): classified as a whole, not walked.
+OPAQUE_FIELDS = {"surcharges"}
 
 
 @dataclass
@@ -131,20 +192,22 @@ def require(emp: Employee, permission: str) -> None:
 
 
 def redact(obj, emp: Employee):
-    """Remove fields this employee isn't allowed to see, at any depth."""
-    hidden = set()
-    if not emp.perms["cost"]:
-        hidden |= COST_FIELDS
-    if not emp.perms["money"]:
-        hidden |= MONEY_FIELDS
-    if not emp.perms["customer"]:
-        hidden |= CUSTOMER_FIELDS
-    if not hidden:
+    """Keep only the fields this employee may see, at any depth. Roles with every permission see everything;
+    for anyone else a field must be public or in a group they're allowed, so an unclassified field is hidden."""
+    p = emp.perms
+    if p["cost"] and p["money"] and p["customer"]:
         return obj
+    allowed = set(PUBLIC_FIELDS)
+    if p["cost"]:
+        allowed |= COST_FIELDS
+    if p["money"]:
+        allowed |= MONEY_FIELDS
+    if p["customer"]:
+        allowed |= CUSTOMER_FIELDS
 
     def walk(o):
         if isinstance(o, dict):
-            return {k: walk(v) for k, v in o.items() if k not in hidden}
+            return {k: (v if k in OPAQUE_FIELDS else walk(v)) for k, v in o.items() if k in allowed}
         if isinstance(o, list):
             return [walk(v) for v in o]
         return o

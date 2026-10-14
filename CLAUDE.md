@@ -4,9 +4,9 @@ Internal employee app for Gatewell Auto Parts Co. FastAPI backend (`app/`), plai
 
 ## Never weaken these (security-critical)
 - **Sign-in and roles** (`app/auth.py`): every API route depends on `current_employee`. Never add a route without it, except `/api/health` and sign-in.
-- **Redaction:** everything returned to the browser or to the model passes through `auth.redact(..., emp)`. Never return raw query results.
+- **Redaction:** everything returned to the browser or to the model passes through `auth.redact(..., emp)`. Never return raw query results. Redaction is an allowlist: every field name must be classified in `auth.py` (public, cost, money or customer). An unclassified field is hidden from restricted roles, and `test_every_returned_field_is_classified` fails until you classify it. Never classify a price, cost or customer detail as public.
 - **Data scope:** queries on orders and analytics use `auth.scope_sql`. Never let a request parameter widen an employee's scope.
-- **Read-only database:** lookups use `db.read_conn()`. The only write path is `db.write_support_case` / `agent_tools.create_support_case`. Don't add new writes without explicit approval from the user.
+- **Read-only database:** lookups use `db.read_conn()`. The only write path is `db.write_support_case` / `agent_tools.create_support_case`, reached from the chat only through `POST /api/cases/confirm` after the employee clicks Create case (the assistant's `propose_support_case` saves nothing). Don't add new writes without explicit approval from the user.
 - **Assistant limits** (`app/assistant.py`): keep the role-based tool list, the round limit, result size cap and audit log. Don't remove or loosen them.
 - **Demo limit** (`app/demo.py`): the demo allows 5 assistant questions per visitor, counted on the server. Don't move the check to the browser or remove it; switch it off only with `GATEWELL_DEMO_MODE=0`.
 - **Business rules** in `app/agent_tools.py` (battery shipping, carrier limits, free-shipping rules) are company policy. Change only when asked.

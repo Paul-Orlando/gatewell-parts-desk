@@ -1,4 +1,5 @@
 """Each role sees only what it should, and data scope limits warehouses - enforced by the server."""
+import json
 from conftest import headers
 
 COST = {"unit_cost_usd", "stock_value_usd", "carrier_cost_usd", "shipping_margin_usd"}
@@ -133,3 +134,74 @@ def test_supervisor_analytics_hide_figures_derived_from_costs(client, ids):
     assert not sup & DERIVED_COST
     director = _keys(client.get("/api/analytics", params={"period": "365"}, headers=headers(ids["director"])).json())
     assert DERIVED_COST <= director
+
+
+# --------------------------------------------------------------------------- every field is classified (allowlist)
+def test_field_groups_do_not_overlap():
+    from app.auth import COST_FIELDS, CUSTOMER_FIELDS, MONEY_FIELDS, PUBLIC_FIELDS
+    groups = [PUBLIC_FIELDS, COST_FIELDS, MONEY_FIELDS, CUSTOMER_FIELDS]
+    for i, a in enumerate(groups):
+        for b in groups[i + 1:]:
+            assert not a & b, a & b
+
+
+def test_unclassified_fields_are_hidden_from_restricted_roles(ids):
+    from app.auth import load_employee, redact
+    data = {"part_number": "X1", "new_secret_margin": 12.5, "results": [{"order_id": "SO-1", "mystery": 1}]}
+    for role in ("warehouse", "cs", "cs_sup"):
+        assert redact(data, load_employee(ids[role])) == {"part_number": "X1", "results": [{"order_id": "SO-1"}]}
+    assert redact(data, load_employee(ids["director"])) == data          # every permission: sees everything
+
+
+def _all_field_names(client, ids):
+    """Field names from every redacted endpoint and assistant tool, as a role that sees everything."""
+    from app import assistant, db
+    from app.auth import OPAQUE_FIELDS, load_employee
+    found = set()
+
+    def walk(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                found.add(k)
+                if k not in OPAQUE_FIELDS:
+                    walk(v)
+        elif isinstance(o, list):
+            for v in o:
+                walk(v)
+    h = headers(ids["director"])
+    old = db.scalar("SELECT part_number FROM parts WHERE status = 'Superseded' LIMIT 1")
+    intl = db.scalar("SELECT order_id FROM orders WHERE order_type = 'International' AND status = 'Delivered' LIMIT 1")
+    with_case = db.scalar("SELECT order_id FROM support_cases WHERE order_id IS NOT NULL LIMIT 1")
+    for url, params in [("/api/inventory", {"limit": 5}), ("/api/inventory", {"stock_filter": "missing", "limit": 5}),
+                        ("/api/parts/KV8Z-9402-Y", None), (f"/api/parts/{old}", None), ("/api/in-transit", None),
+                        ("/api/orders", {"limit": 5}), (f"/api/orders/{intl}", None), (f"/api/orders/{with_case}", None),
+                        ("/api/cases", None), ("/api/analytics", {"period": "all"})]:
+        r = client.get(url, params=params, headers=h)
+        assert r.status_code == 200, url
+        walk(r.json())
+    for body in ({"items": [{"part_number": "KV8Z-9402-Y"}], "ship_to_state": "FL"},
+                 {"items": [{"part_number": "02938-T5C77"}], "ship_to_country": "CA", "customer_id": "R05016"},
+                 {"items": [{"part_number": "KV8Z-9402-Y"}], "ship_to_country": "GB"}):
+        walk(client.post("/api/quote", json=body, headers=h).json())
+    od, sup = load_employee(ids["director"]), load_employee(ids["cs_sup"])
+    cust = db.scalar("SELECT customer_id FROM customers WHERE customer_type = 'Individual' LIMIT 1")
+    for emp, name, a in [(od, "search_inventory", {"q": "battery", "limit": 3}), (od, "get_part_details", {"part_number": old}),
+                         (od, "find_in_transit", {}), (od, "search_orders", {"limit": 3}), (od, "get_order", {"order_id": intl}),
+                         (od, "get_part_price", {"part_number": "KV8Z-9402-Y", "customer_id": "D0022"}),
+                         (od, "get_part_price", {"part_number": old}),
+                         (od, "quote_shipping", {"items": [{"part_number": "KV8Z-9402-Y"}], "ship_to_state": "FL"}),
+                         (od, "full_quote", {"items": [{"part_number": "02938-T5C77"}], "customer_id": "R05016"}),
+                         (od, "list_support_cases", {"status": "active", "limit": 3}), (od, "analytics_summary", {"period": "all"}),
+                         (od, "search_faq", {"question": "return policy"}), (od, "contact_team", {"department_id": "RET"}),
+                         (od, "escalate_to_person", {"question": "refund 400", "refund_amount_usd": 400}),
+                         (sup, "propose_support_case", {"customer_id": cust, "department_id": "RET", "contact_reason": "x"})]:
+        text, is_err = assistant.run_tool(emp, name, a)
+        assert not is_err, (name, text[:200])
+        walk(json.loads(text))
+    return found
+
+
+def test_every_returned_field_is_classified(client, ids):
+    from app.auth import COST_FIELDS, CUSTOMER_FIELDS, MONEY_FIELDS, PUBLIC_FIELDS
+    unclassified = _all_field_names(client, ids) - (PUBLIC_FIELDS | COST_FIELDS | MONEY_FIELDS | CUSTOMER_FIELDS)
+    assert not unclassified, f"Classify these fields in app/auth.py: {sorted(unclassified)}"
