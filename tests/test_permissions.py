@@ -175,7 +175,8 @@ def _all_field_names(client, ids):
     for url, params in [("/api/inventory", {"limit": 5}), ("/api/inventory", {"stock_filter": "missing", "limit": 5}),
                         ("/api/parts/KV8Z-9402-Y", None), (f"/api/parts/{old}", None), ("/api/in-transit", None),
                         ("/api/orders", {"limit": 5}), (f"/api/orders/{intl}", None), (f"/api/orders/{with_case}", None),
-                        ("/api/cases", None), ("/api/analytics", {"period": "all"})]:
+                        ("/api/cases", None), ("/api/analytics", {"period": "all"}),
+                        ("/api/analytics", {"period": "all", "category": "Brakes"})]:
         r = client.get(url, params=params, headers=h)
         assert r.status_code == 200, url
         walk(r.json())

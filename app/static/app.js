@@ -143,7 +143,8 @@ function openDrawer(title, html) {
   $("#drawer").setAttribute("aria-hidden", "false");
   $("#drawer-close").focus();
 }
-function closeDrawer() { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); }
+function closeDrawer() { $("#drawer").classList.remove("open"); $("#drawer").setAttribute("aria-hidden", "true"); dropDrawerChart(); }
+function dropDrawerChart() { if (S.drawerChart) { S.drawerChart.destroy(); S.drawerChart = null; } }
 const opt = (v, label, sel) => `<option value="${esc(v)}" ${String(v) === String(sel ?? "") ? "selected" : ""}>${esc(label)}</option>`;
 const whOptions = (sel, all = "All warehouses") => opt("", all, sel) + S.meta.warehouses.map((w) => opt(w.warehouse_code, `${w.warehouse_code} ${w.city}, ${w.state}`, sel)).join("");
 const facts = (pairs) => `<dl class="facts">${pairs.filter(([, v]) => v !== undefined).map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v ?? "—"}</dd></div>`).join("")}</dl>`;
@@ -231,12 +232,13 @@ async function viewInventory() {
   };
   f.onsubmit = (e) => { e.preventDefault(); run(); };
   $("#inv-results").onclick = (e) => { const tr = e.target.closest("tr[data-pn]"); if (tr) partDrawer(tr.dataset.pn); };
-  $("#inv-results").onkeydown = (e) => { const tr = e.target.closest("tr[data-pn]"); if (tr && e.key === "Enter") partDrawer(tr.dataset.pn); };
+  $("#inv-results").onkeydown = (e) => { const tr = e.target.closest("tr[data-pn]"); if (tr && e.key === "Enter") { e.preventDefault(); partDrawer(tr.dataset.pn); } };
   await loadModels();
   run();
 }
 
 async function partDrawer(pn) {
+  dropDrawerChart();
   openDrawer(`<span class="pn">${esc(pn)}</span>`, '<p class="empty">Loading…</p>');
   const d = await api(`/api/parts/${encodeURIComponent(pn)}`);
   const p = d.part;
@@ -271,7 +273,12 @@ async function partDrawer(pn) {
     ${d.equivalents.length ? `<section><h3>Equivalent parts</h3><div class="table-wrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Quality</th><th class="num">List price</th><th class="num">Available</th></tr></thead><tbody>
       ${d.equivalents.map((x) => `<tr class="clickable" data-pn="${esc(x.part_number)}"><td class="pn">${esc(x.part_number)}</td><td>${esc(x.brand)}</td><td>${esc(x.quality_tier)}</td><td class="num">${usd(x.list_price_usd)}</td><td class="num">${n(x.qty_available)}</td></tr>`).join("")}
       </tbody></table></div></section>` : ""}
-    ${d.monthly_sales.length ? `<section><h3>Recent sales</h3><p class="small muted">${d.monthly_sales.slice(0, 6).map((m) => `${esc(m.order_month)}: ${n(m.units)} units${has(m, "revenue_usd") ? ` (${usd(m.revenue_usd, 0)})` : ""}`).join("; ")}</p></section>` : ""}`;
+    <section><h3>Units sold per month</h3><p class="sub small muted">Last 12 months, ${esc(S.emp.scope_label)}${d.monthly_sales.some((m) => m.units) ? "" : ". No sales in this period"}</p>
+      <div class="chart-box small"><canvas id="c-part-sales" aria-label="Units sold per month, last 12 months" role="img"></canvas></div>
+      ${tableView(d.monthly_sales, [["order_month", "Month", 0, (v) => esc(monthLabel(v))], ["units", "Units", 1],
+        ...(has(d.monthly_sales[0] || {}, "revenue_usd") ? [["revenue_usd", "Revenue", 1, (v) => usd(v, 0)]] : [])])}</section>`;
+  S.drawerChart = chart("c-part-sales", { own: true, data: { labels: d.monthly_sales.map((m) => monthLabel(m.order_month)),
+    datasets: [{ label: "Units sold", data: d.monthly_sales.map((m) => m.units), backgroundColor: cssVar("--series-1") }] } });
   const qf = $("#quote-form");
   qf.country.onchange = () => { qf.state.disabled = qf.country.value !== "US"; };
   qf.onsubmit = async (e) => {
@@ -332,7 +339,7 @@ async function viewOrders() {
   $("#ord-seg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; st.days = b.dataset.v; $("#ord-seg").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); run(); };
   f.onsubmit = (e) => { e.preventDefault(); run(); };
   $("#ord-results").onclick = (e) => { const tr = e.target.closest("tr[data-id]"); if (tr) orderDrawer(tr.dataset.id); };
-  $("#ord-results").onkeydown = (e) => { const tr = e.target.closest("tr[data-id]"); if (tr && e.key === "Enter") orderDrawer(tr.dataset.id); };
+  $("#ord-results").onkeydown = (e) => { const tr = e.target.closest("tr[data-id]"); if (tr && e.key === "Enter") { e.preventDefault(); orderDrawer(tr.dataset.id); } };
   run();
 }
 
@@ -538,29 +545,57 @@ function chart(id, cfg) {
     scales: { x: { grid: { display: !!cfg.horizontal, color: rule }, ticks: { maxRotation: 0, autoSkipPadding: 12 } },
       y: { grid: { display: !cfg.horizontal, color: rule }, border: { display: false }, ticks: {} } } };
   if (cfg.money) base.scales[cfg.horizontal ? "x" : "y"].ticks.callback = (v) => usd(v, 0);
-  if (cfg.data.labels.length <= 12) base.scales[cfg.horizontal ? "y" : "x"].ticks.autoSkip = false;
+  const room = (cfg.horizontal ? el.clientHeight : el.clientWidth) / Math.max(cfg.data.labels.length, 1);
+  if (cfg.data.labels.length <= 12 && room >= (cfg.horizontal ? 18 : 52)) base.scales[cfg.horizontal ? "y" : "x"].ticks.autoSkip = false;
   if (cfg.stacked) { base.scales.x.stacked = true; base.scales.y.stacked = true; }
   if (cfg.horizontal) base.indexAxis = "y";
   cfg.data.datasets.forEach((ds) => Object.assign(ds, { borderRadius: 4, borderSkipped: "start", maxBarThickness: 34 }, cfg.stacked ? { borderColor: cssVar("--surface"), borderWidth: { top: 2 } } : {}));
-  S.charts.push(new Chart(el, { type: cfg.type || "bar", data: cfg.data, options: base }));
+  const c = new Chart(el, { type: cfg.type || "bar", data: cfg.data, options: base });
+  if (!cfg.own) S.charts.push(c);                 // dashboard charts are destroyed together on reload
+  return c;
 }
 const tableView = (rows, cols) => `<details><summary>Show as table</summary><div class="table-wrap" style="margin-top:6px"><table><thead><tr>${cols.map(([, l, num]) => `<th class="${num ? "num" : ""}">${esc(l)}</th>`).join("")}</tr></thead><tbody>
   ${rows.map((r) => `<tr>${cols.map(([k, , num, f]) => `<td class="${num ? "num" : ""}">${f ? f(r[k]) : num ? n(r[k]) : esc(r[k])}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details>`;
 
 async function viewAnalytics() {
-  const st = JSON.parse(sessionStorage.getItem("gw_an") || "null") || { period: "90", warehouse: "" };
+  const st = { period: "90", warehouse: "", category: "", ...JSON.parse(sessionStorage.getItem("gw_an") || "null") };
   $("#main").innerHTML = intro() + `<div class="filters" id="an-filters">
       <div class="field"><span>Sales period</span><div class="seg" id="an-seg">${[["30", "30 days"], ["90", "90 days"], ["365", "12 months"], ["all", "All time"]].map(([v, l]) => `<button type="button" data-v="${v}" aria-pressed="${st.period === v}">${l}</button>`).join("")}</div></div>
       <label class="field"><span>Warehouse</span><select id="an-wh"></select></label>
+      <label class="field"><span>Category</span><select id="an-cat">${opt("", "All categories", st.category)}${S.meta.categories.map((c) => opt(c, c, st.category)).join("")}</select></label>
       <p class="small muted" id="an-scope" style="margin:0 0 6px auto"></p></div><div id="an-body"><p class="empty">Loading…</p></div>`;
   const load = async () => {
     sessionStorage.setItem("gw_an", JSON.stringify(st));
     S.charts.forEach((c) => c.destroy()); S.charts = [];
     const d = await api(`/api/analytics?${qs(st)}`);
-    $("#an-wh").innerHTML = opt("", d.warehouses.length > 1 ? `All in ${S.emp.scope_label.toLowerCase()}` : d.warehouses[0], st.warehouse) + (d.warehouses.length > 1 ? d.warehouses.map((w) => opt(w, w, st.warehouse)).join("") : "");
+    $("#an-wh").innerHTML = opt("", d.warehouses.length > 1 ? (S.emp.scope === "Company" ? "All warehouses" : `All in ${S.emp.scope_label.toLowerCase()}`) : d.warehouses[0], st.warehouse) + (d.warehouses.length > 1 ? d.warehouses.map((w) => opt(w, w, st.warehouse)).join("") : "");
     $("#an-scope").textContent = `Your view: ${d.scope}. Data as of ${d.as_of}.`;
-    const k = d.kpis, cost = has(k, "stock_value_usd");
-    const period = { 30: "last 30 days", 90: "last 90 days", 365: "last 12 months", all: "all time" }[st.period];
+    const k = d.kpis, cost = has(k, "stock_value_usd"), split = !d.note;   // split = shipping and FX can be shown
+    const period = { 30: "last 30 days", 90: "last 90 days", 365: "last 12 months", all: "all time" }[st.period]
+      + (st.category ? `, ${st.category} only` : "");
+    const only = st.category ? `, ${esc(st.category)} only` : "";
+    // Panels in reading order, laid out two per row. With a category selected, shipping panels are left out
+    // (shipping is per order) and revenue by region takes their place.
+    const panels = [
+      `<div class="panel"><h3>Revenue by month</h3><p class="sub">Domestic and international, all time${only}. The last month is month to date.</p><div class="chart-box"><canvas id="c-sales"></canvas></div>
+        ${tableView(d.sales_by_month, [["label", "Month"], ["domestic_revenue_usd", "Domestic", 1, (v) => usd(v, 0)], ["international_revenue_usd", "International", 1, (v) => usd(v, 0)], ["orders", "Orders", 1]])}</div>`,
+      cost && split ? `<div class="panel"><h3>Shipping: what it cost vs. what we charged</h3><p class="sub">By month, all time (last month to date). The gap is shipping we absorb, mostly free shipping and dealer delivery.</p><div class="chart-box"><canvas id="c-ship-month"></canvas></div>
+        ${tableView(d.sales_by_month, [["label", "Month"], ["carrier_cost_usd", "Carrier cost", 1, (v) => usd(v, 0)], ["shipping_usd", "Charged", 1, (v) => usd(v, 0)]])}</div>` : "",
+      !cost || !split ? `<div class="panel"><h3>Revenue by region</h3><p class="sub">${esc(period)}</p><div class="chart-box"><canvas id="c-region"></canvas></div>
+        ${tableView(d.revenue_by_region, [["label", "Region"], ["orders", "Orders", 1], ["revenue_usd", "Revenue", 1, (v) => usd(v, 0)]])}</div>` : "",
+      split ? `<div class="panel"><h3>Shipping cost by carrier</h3><p class="sub">${cost ? "Average carrier cost per order" : "Average shipping charged per order"}, ${esc(period)}</p><div class="chart-box"><canvas id="c-carrier"></canvas></div>
+        ${tableView(d.shipping_by_carrier, [["label", "Carrier"], ["orders", "Orders", 1], ...(cost ? [["avg_carrier_cost_usd", "Avg cost", 1, (v) => usd(v)], ["cost_pct_of_revenue", "% of revenue", 1, (v) => `${v}%`]] : []), ["avg_charged_usd", "Avg charged", 1, (v) => usd(v)]])}</div>` : "",
+      `<div class="panel"><h3>Average list price by category</h3><p class="sub">OEM, Premium and Value parts</p><div class="chart-box"><canvas id="c-price"></canvas></div>
+        ${tableView(d.price_by_group, [["label", "Category"], ["oem_avg_price_usd", "OEM", 1, (v) => usd(v)], ["premium_avg_price_usd", "Premium", 1, (v) => usd(v)], ["value_avg_price_usd", "Value", 1, (v) => usd(v)], ...(cost ? [["avg_cost_pct_of_list", "Cost % of list", 1, (v) => `${v}%`]] : [])])}</div>`,
+      `<div class="panel"><h3>Units on hand by category</h3><p class="sub">Right now${only}</p><div class="chart-box"><canvas id="c-inv-group"></canvas></div>
+        ${tableView(d.inventory_by_group, [["label", "Category"], ["units", "On hand", 1], ["available", "Available", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>`,
+      `<div class="panel"><h3>Units on hand by warehouse</h3><p class="sub">Right now${only}, with units missing in the table</p><div class="chart-box"><canvas id="c-inv-wh"></canvas></div>
+        ${tableView(d.inventory_by_warehouse, [["label", "Warehouse"], ["units", "On hand", 1], ["in_transit", "In transit", 1], ["missing", "Missing", 1], ["needs_reorder", "Low-stock parts", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>`,
+      `<div class="panel"><h3>How long stock has sat</h3><p class="sub">Units by days since last sale or receipt${only}</p><div class="chart-box"><canvas id="c-aging"></canvas></div>
+        ${tableView(d.stock_aging, [["label", "Age"], ["units", "Units", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>`,
+      `<div class="panel"><h3>Revenue by category</h3><p class="sub">${esc(period)}</p><div class="chart-box"><canvas id="c-sales-group"></canvas></div>
+        ${tableView(d.sales_by_group, [["label", "Category"], ["units", "Units", 1], ["revenue_usd", "Revenue", 1, (v) => usd(v, 0)]])}</div>`,
+    ].filter(Boolean);
     const kpi = (v, l, s = "") => `<div class="kpi"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s ? `<div class="s">${esc(s)}</div>` : ""}</div>`;
     $("#an-body").innerHTML = `
       <div class="kpis">
@@ -571,45 +606,22 @@ async function viewAnalytics() {
         ${kpi(n(k.units_missing), "Units missing", cost ? `${usd(k.missing_value_usd, 0)} at cost` : "under review")}
         ${kpi(usd(k.revenue_usd, 0), "Revenue", `${n(k.orders)} orders, ${period}`)}
         ${kpi(n(k.units_sold), "Units sold", `${k.international_revenue_pct ?? 0}% of revenue international`)}
-        ${cost ? kpi(`${k.shipping_cost_pct_of_revenue ?? 0}%`, "Shipping cost of revenue", `${usd(k.carrier_cost_usd, 0)} paid, ${usd(k.shipping_usd, 0)} charged`) : ""}
-        ${cost ? kpi(usd(k.fx_gain_loss_usd, 0), "Exchange gain/loss", "realized on paid invoices") : ""}
+        ${cost && split ? kpi(`${k.shipping_cost_pct_of_revenue ?? 0}%`, "Shipping cost of revenue", `${usd(k.carrier_cost_usd, 0)} paid, ${usd(k.shipping_usd, 0)} charged`) : ""}
+        ${cost && split ? kpi(usd(k.fx_gain_loss_usd, 0), "Exchange gain/loss", "realized on paid invoices") : ""}
       </div>
-      <div class="grid2">
-        <div class="panel"><h3>Revenue by month</h3><p class="sub">Domestic and international, all time. The last month is month to date.</p><div class="chart-box"><canvas id="c-sales"></canvas></div>
-          ${tableView(d.sales_by_month, [["label", "Month"], ["domestic_revenue_usd", "Domestic", 1, (v) => usd(v, 0)], ["international_revenue_usd", "International", 1, (v) => usd(v, 0)], ["orders", "Orders", 1]])}</div>
-        ${cost ? `<div class="panel"><h3>Shipping: what it cost vs. what we charged</h3><p class="sub">By month, all time (last month to date). The gap is shipping we absorb, mostly free shipping and dealer delivery.</p><div class="chart-box"><canvas id="c-ship-month"></canvas></div>
-          ${tableView(d.sales_by_month, [["label", "Month"], ["carrier_cost_usd", "Carrier cost", 1, (v) => usd(v, 0)], ["shipping_usd", "Charged", 1, (v) => usd(v, 0)]])}</div>`
-        : `<div class="panel"><h3>Revenue by region</h3><p class="sub">${esc(period)}</p><div class="chart-box"><canvas id="c-region"></canvas></div></div>`}
-      </div>
-      <div class="grid2">
-        <div class="panel"><h3>Shipping cost by carrier</h3><p class="sub">${cost ? "Average carrier cost per order" : "Average shipping charged per order"}, ${esc(period)}</p><div class="chart-box"><canvas id="c-carrier"></canvas></div>
-          ${tableView(d.shipping_by_carrier, [["label", "Carrier"], ["orders", "Orders", 1], ...(cost ? [["avg_carrier_cost_usd", "Avg cost", 1, (v) => usd(v)], ["cost_pct_of_revenue", "% of revenue", 1, (v) => `${v}%`]] : []), ["avg_charged_usd", "Avg charged", 1, (v) => usd(v)]])}</div>
-        <div class="panel"><h3>Average list price by category</h3><p class="sub">OEM, Premium and Value parts</p><div class="chart-box"><canvas id="c-price"></canvas></div>
-          ${tableView(d.price_by_group, [["label", "Category"], ["oem_avg_price_usd", "OEM", 1, (v) => usd(v)], ["premium_avg_price_usd", "Premium", 1, (v) => usd(v)], ["value_avg_price_usd", "Value", 1, (v) => usd(v)], ...(cost ? [["avg_cost_pct_of_list", "Cost % of list", 1, (v) => `${v}%`]] : [])])}</div>
-      </div>
-      <div class="grid2">
-        <div class="panel"><h3>Units on hand by category</h3><p class="sub">Right now</p><div class="chart-box"><canvas id="c-inv-group"></canvas></div>
-          ${tableView(d.inventory_by_group, [["label", "Category"], ["units", "On hand", 1], ["available", "Available", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>
-        <div class="panel"><h3>Units on hand by warehouse</h3><p class="sub">Right now, with units missing in the table</p><div class="chart-box"><canvas id="c-inv-wh"></canvas></div>
-          ${tableView(d.inventory_by_warehouse, [["label", "Warehouse"], ["units", "On hand", 1], ["in_transit", "In transit", 1], ["missing", "Missing", 1], ["needs_reorder", "Low-stock parts", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>
-      </div>
-      <div class="grid2">
-        <div class="panel"><h3>How long stock has sat</h3><p class="sub">Units by days since last sale or receipt</p><div class="chart-box"><canvas id="c-aging"></canvas></div>
-          ${tableView(d.stock_aging, [["label", "Age"], ["units", "Units", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>
-        <div class="panel"><h3>Revenue by category</h3><p class="sub">${esc(period)}</p><div class="chart-box"><canvas id="c-sales-group"></canvas></div>
-          ${tableView(d.sales_by_group, [["label", "Category"], ["units", "Units", 1], ["revenue_usd", "Revenue", 1, (v) => usd(v, 0)]])}</div>
-      </div>
-      <div class="panel" style="margin-bottom:16px"><h3>Low stock to reorder</h3><p class="sub">Parts at or below their reorder point, backorders first</p>
+      ${!split ? `<p class="lock" style="margin:0 0 16px">${esc(d.note)}</p>` : ""}
+      ${panels.map((x, i) => (i % 2 ? "" : `<div class="grid2">${x}${panels[i + 1] || ""}</div>`)).join("")}
+      <div class="panel" style="margin-bottom:16px"><h3>Low stock to reorder</h3><p class="sub">Parts at or below their reorder point, backorders first${only}. Select a part for its details.</p>
         <div class="table-wrap"><table><thead><tr><th>Part</th><th>Warehouse</th><th class="num">Available</th><th class="num">Reorder at</th><th class="num">In transit</th><th class="num">Backordered</th><th class="num">Days of cover</th></tr></thead><tbody>
-        ${d.low_stock.map((r) => `<tr><td><span class="pn">${esc(r.part_number)}</span> <span class="small">${esc(r.part_name)}</span><div class="muted small">${esc(r.fits_summary)}</div></td><td>${esc(r.warehouse_code)}</td>
+        ${d.low_stock.map((r) => `<tr class="clickable" data-pn="${esc(r.part_number)}" tabindex="0"><td><span class="pn">${esc(r.part_number)}</span> <span class="small">${esc(r.part_name)}</span><div class="muted small">${esc(r.fits_summary)}</div></td><td>${esc(r.warehouse_code)}</td>
           <td class="num">${n(r.qty_available)}</td><td class="num">${n(r.reorder_point)}</td><td class="num">${n(r.qty_in_transit)}</td><td class="num">${r.qty_backordered ? `<span class="status warn">${n(r.qty_backordered)}</span>` : "0"}</td><td class="num">${n(r.days_of_cover, 1)}</td></tr>`).join("") || '<tr><td colspan="7" class="empty">Nothing below its reorder point.</td></tr>'}
         </tbody></table></div></div>
       <div class="grid2">
-        <div class="panel"><h3>Top parts by revenue</h3><p class="sub">${esc(period)}</p><div class="table-wrap"><table><thead><tr><th>Part</th><th class="num">Units</th><th class="num">Revenue</th></tr></thead><tbody>
-          ${d.top_parts.map((r) => `<tr><td><span class="pn">${esc(r.part_number)}</span> <span class="small">${esc(r.part_name)}</span><div class="muted small">${esc(r.fits_summary)}</div></td><td class="num">${n(r.units)}</td><td class="num">${usd(r.revenue_usd, 0)}</td></tr>`).join("")}
+        <div class="panel"><h3>Top parts by revenue</h3><p class="sub">${esc(period)}. Select a part for its details.</p><div class="table-wrap"><table><thead><tr><th>Part</th><th class="num">Units</th><th class="num">Revenue</th></tr></thead><tbody>
+          ${d.top_parts.map((r) => `<tr class="clickable" data-pn="${esc(r.part_number)}" tabindex="0"><td><span class="pn">${esc(r.part_number)}</span> <span class="small">${esc(r.part_name)}</span><div class="muted small">${esc(r.fits_summary)}</div></td><td class="num">${n(r.units)}</td><td class="num">${usd(r.revenue_usd, 0)}</td></tr>`).join("")}
           </tbody></table></div></div>
-        <div class="panel"><h3>International sales by country</h3><p class="sub">${esc(period)}, billed in each customer's currency</p><div class="table-wrap"><table><thead><tr><th>Country</th><th class="num">Orders</th><th class="num">Billed</th><th class="num">In USD</th>${cost ? '<th class="num">FX gain/loss</th>' : ""}</tr></thead><tbody>
-          ${d.revenue_by_country.map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${n(r.orders)}</td><td class="num" style="white-space:nowrap">${money(r.billed_local, r.currency)}</td><td class="num">${usd(r.revenue_usd, 0)}</td>${cost ? `<td class="num">${usd(r.fx_gain_loss_usd, 0)}</td>` : ""}</tr>`).join("") || '<tr><td colspan="5" class="empty">No international orders in this view.</td></tr>'}
+        <div class="panel"><h3>International sales by country</h3><p class="sub">${esc(period)}, billed in each customer's currency</p><div class="table-wrap"><table><thead><tr><th>Country</th><th class="num">Orders</th><th class="num">Billed</th><th class="num">In USD</th>${cost && split ? '<th class="num">FX gain/loss</th>' : ""}</tr></thead><tbody>
+          ${d.revenue_by_country.map((r) => `<tr><td>${esc(r.label)}</td><td class="num">${n(r.orders)}</td><td class="num" style="white-space:nowrap">${money(r.billed_local, r.currency)}</td><td class="num">${usd(r.revenue_usd, 0)}</td>${cost && split ? `<td class="num">${usd(r.fx_gain_loss_usd, 0)}</td>` : ""}</tr>`).join("") || '<tr><td colspan="5" class="empty">No international orders in this view.</td></tr>'}
           </tbody></table></div></div>
       </div>`;
     const s1 = cssVar("--series-1"), s2 = cssVar("--series-2"), s3 = cssVar("--series-3");
@@ -617,11 +629,11 @@ async function viewAnalytics() {
     chart("c-sales", { stacked: true, money: true, data: { labels: L(d.sales_by_month), datasets: [
       { label: "Domestic", data: d.sales_by_month.map((r) => r.domestic_revenue_usd), backgroundColor: s1 },
       { label: "International", data: d.sales_by_month.map((r) => r.international_revenue_usd), backgroundColor: s2 }] } });
-    if (cost) chart("c-ship-month", { type: "line", money: true, data: { labels: L(d.sales_by_month), datasets: [
+    if (cost && split) chart("c-ship-month", { type: "line", money: true, data: { labels: L(d.sales_by_month), datasets: [
       { label: "Carrier cost", data: d.sales_by_month.map((r) => r.carrier_cost_usd), borderColor: s2, backgroundColor: s2, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5 },
       { label: "Charged to customers", data: d.sales_by_month.map((r) => r.shipping_usd), borderColor: s1, backgroundColor: s1, borderWidth: 2, pointRadius: 0, pointHoverRadius: 5 }] } });
-    else chart("c-region", { horizontal: true, money: true, data: { labels: L(d.revenue_by_region), datasets: [{ label: "Revenue", data: d.revenue_by_region.map((r) => r.revenue_usd), backgroundColor: s1 }] } });
-    chart("c-carrier", { horizontal: true, money: true, data: { labels: L(d.shipping_by_carrier), datasets: [{ label: cost ? "Avg carrier cost" : "Avg charged", data: d.shipping_by_carrier.map((r) => cost ? r.avg_carrier_cost_usd : r.avg_charged_usd), backgroundColor: s1 }] } });
+    if (!cost || !split) chart("c-region", { horizontal: true, money: true, data: { labels: L(d.revenue_by_region), datasets: [{ label: "Revenue", data: d.revenue_by_region.map((r) => r.revenue_usd), backgroundColor: s1 }] } });
+    if (split) chart("c-carrier", { horizontal: true, money: true, data: { labels: L(d.shipping_by_carrier), datasets: [{ label: cost ? "Avg carrier cost" : "Avg charged", data: d.shipping_by_carrier.map((r) => cost ? r.avg_carrier_cost_usd : r.avg_charged_usd), backgroundColor: s1 }] } });
     chart("c-price", { money: true, data: { labels: L(d.price_by_group), datasets: [
       { label: "OEM", data: d.price_by_group.map((r) => r.oem_avg_price_usd), backgroundColor: s1 },
       { label: "Premium", data: d.price_by_group.map((r) => r.premium_avg_price_usd), backgroundColor: s2 },
@@ -632,7 +644,14 @@ async function viewAnalytics() {
     chart("c-sales-group", { horizontal: true, money: true, data: { labels: L(d.sales_by_group), datasets: [{ label: "Revenue", data: d.sales_by_group.map((r) => r.revenue_usd), backgroundColor: s1 }] } });
   };
   $("#an-seg").onclick = (e) => { const b = e.target.closest("button"); if (!b) return; st.period = b.dataset.v; $("#an-seg").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); };
-  $("#an-filters").onchange = (e) => { if (e.target.id === "an-wh") { st.warehouse = e.target.value; load(); } };
+  $("#an-filters").onchange = (e) => {
+    if (e.target.id === "an-wh") { st.warehouse = e.target.value; load(); }
+    if (e.target.id === "an-cat") { st.category = e.target.value; load(); }
+  };
+  // Enter must not also "click" the drawer's Close button, which gets focus as the drawer opens
+  const openPart = (e) => { const tr = e.target.closest("tr[data-pn]"); if (tr && (e.type === "click" || e.key === "Enter")) { e.preventDefault(); partDrawer(tr.dataset.pn); } };
+  $("#an-body").onclick = openPart;
+  $("#an-body").onkeydown = openPart;
   const wait = () => (window.Chart ? load() : setTimeout(wait, 50));
   wait();
 }

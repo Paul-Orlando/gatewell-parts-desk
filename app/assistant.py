@@ -128,10 +128,13 @@ TOOLS = [
          run=lambda e, a: services.list_cases(e, **a)),
     dict(name="analytics_summary", roles={"cs_supervisor", "manager"},
          description="Business metrics for the employee's scope. Ask for only the sections you need; each one covers every "
-                     "warehouse in scope unless you pass warehouse. period: 30, 90, 365, all (monthly and quarterly sales always "
-                     "cover the whole history). Sections: " + "; ".join(f"{k}: {v}" for k, v in analytics.SECTIONS.items()) + ".",
+                     "warehouse in scope unless you pass warehouse. category narrows every stock and sales figure to one "
+                     "category group; shipping and FX figures cover whole orders, so they're empty when a category is given. "
+                     "period: 30, 90, 365, all (monthly and quarterly sales always cover the whole history). Sections: " + "; ".join(f"{k}: {v}" for k, v in analytics.SECTIONS.items()) + ".",
          schema={"type": "object", "properties": {"period": {"type": "string", "enum": ["30", "90", "365", "all"]},
                                                   "warehouse": {"type": "string", "enum": WAREHOUSE_CODES, "description": "Warehouse code (see the list in your instructions)"},
+                                                  "category": {"type": "string", "enum": services.category_groups(),
+                                                               "description": "Optional category group to narrow to"},
                                                   "sections": {"type": "array", "items": {"type": "string", "enum": list(analytics.SECTIONS)},
                                                                "description": "Sections to return, e.g. ['inventory_by_warehouse', 'missing_by_group']"}}},
          run=lambda e, a: _analytics(e, a)),
@@ -171,8 +174,9 @@ def _analytics(emp, a):
     if unknown:
         raise services.BadInput(f"Unknown analytics section {', '.join(map(repr, unknown))}. Use any of: "
                                 + ", ".join(analytics.SECTIONS) + ".")
-    d = analytics.dashboard(emp, a.get("period", "90"), a.get("warehouse"))
-    return {k: v for k, v in d.items() if not secs or k in secs or k in ("period", "warehouse", "scope", "scope_note", "as_of")}
+    d = analytics.dashboard(emp, a.get("period", "90"), a.get("warehouse"), a.get("category"))
+    meta = ("period", "warehouse", "category", "note", "scope", "scope_note", "as_of")
+    return {k: v for k, v in d.items() if not secs or k in secs or k in meta}
 
 
 # --------------------------------------------------------------------------- support cases: prepare, then confirm

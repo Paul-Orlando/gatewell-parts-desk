@@ -81,7 +81,7 @@ def test_plural_search_words_find_singular_part_names(ids):
 
 
 # --------------------------------------------------------------------------- analytics sections (live test fix F)
-META = {"period", "warehouse", "scope", "scope_note", "as_of", "warehouses"}
+META = {"period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "warehouses"}
 
 
 def test_analytics_sections_list_matches_the_dashboard(ids):
@@ -110,3 +110,100 @@ def test_missing_value_per_warehouse_for_cost_roles_only(ids):
     sup = json.loads(assistant.run_tool(load_employee(ids["cs_sup"]), "analytics_summary",
                                         {"period": "all", "sections": ["inventory_by_warehouse"]})[0])
     assert all("missing_value_usd" not in r and "missing" in r for r in sup["inventory_by_warehouse"])
+
+
+# --------------------------------------------------------------------------- analytics category filter
+def _brakes_sql(warehouses=None):
+    """Direct SQL for the Brakes group, optionally limited to some warehouses."""
+    w = f" AND warehouse_code IN ({','.join('?' * len(warehouses))})" if warehouses else ""
+    stock = db.one(f"""SELECT SUM(qty_on_hand) units, SUM(qty_missing) missing FROM v_stock_position
+                       WHERE category_group = 'Brakes' {w}""", *(warehouses or []))
+    ow = f" AND o.fulfillment_warehouse IN ({','.join('?' * len(warehouses))})" if warehouses else ""
+    revenue = db.scalar(f"""SELECT ROUND(SUM(ol.line_total_usd)) FROM order_lines ol JOIN orders o USING (order_id)
+                            JOIN parts p USING (part_id) WHERE p.category_group = 'Brakes' AND o.status <> 'Cancelled' {ow}""",
+                        *(warehouses or []))
+    return stock, revenue
+
+
+def _group_of(part_number):
+    return db.scalar("SELECT category_group FROM parts WHERE part_number = ?", part_number)
+
+
+def test_category_narrows_every_section(client, ids):
+    d = client.get("/api/analytics", params={"period": "all", "category": "Brakes"}, headers=headers(ids["director"])).json()
+    stock, revenue = _brakes_sql()
+    assert d["category"] == "Brakes" and d["note"]
+    assert [r["label"] for r in d["inventory_by_group"]] == ["Brakes"] == [r["label"] for r in d["sales_by_group"]]
+    assert [r["label"] for r in d["missing_by_group"]] in (["Brakes"], [])
+    assert d["kpis"]["units_on_hand"] == stock["units"] and d["kpis"]["units_missing"] == stock["missing"]
+    assert abs(d["kpis"]["revenue_usd"] - revenue) <= 1                # whole dollars, summed per order first
+    assert sum(r["units"] for r in d["inventory_by_warehouse"]) == stock["units"]
+    assert {_group_of(r["part_number"]) for r in d["low_stock"] + d["top_parts"]} == {"Brakes"}
+    assert [r["label"] for r in d["price_by_group"]] == ["Brakes"]
+    # shipping and FX are per order, so they're left out with a note
+    assert d["shipping_by_carrier"] == [] and d["shipping_by_service"] == []
+    assert d["kpis"]["carrier_cost_usd"] is None and d["kpis"]["fx_gain_loss_usd"] is None
+    assert all(r["carrier_cost_usd"] is None for r in d["sales_by_month"])
+
+
+def test_categories_add_up_to_the_whole(client, ids):
+    from app import analytics, services
+    od = load_employee(ids["director"])
+    whole = analytics.dashboard(od, "all")
+    parts = [analytics.dashboard(od, "all", category=g) for g in services.category_groups()]
+    assert sum(p["kpis"]["units_on_hand"] for p in parts) == whole["kpis"]["units_on_hand"]
+    assert abs(sum(p["kpis"]["revenue_usd"] for p in parts) - whole["kpis"]["revenue_usd"]) <= len(parts)   # rounding
+    assert whole["note"] is None and whole["category"] == "All categories" and whole["shipping_by_carrier"]
+
+
+def test_category_keeps_the_warehouse_scope(client, ids):
+    wm = client.get("/api/analytics", params={"period": "all", "category": "Brakes"}, headers=headers(ids["wh_manager"])).json()
+    stock, revenue = _brakes_sql(["ATL"])
+    assert {r["label"] for r in wm["inventory_by_warehouse"]} == {"ATL"}
+    assert wm["kpis"]["units_on_hand"] == stock["units"] and abs(wm["kpis"]["revenue_usd"] - revenue) <= 1
+    assert {r["warehouse_code"] for r in wm["low_stock"]} <= {"ATL"}
+    # asking for another warehouse with a category can't widen the view
+    spoof = client.get("/api/analytics", params={"period": "all", "category": "Brakes", "warehouse": "LAX"},
+                       headers=headers(ids["wh_manager"])).json()
+    assert {r["label"] for r in spoof["inventory_by_warehouse"]} == {"ATL"} and spoof["scope_note"]
+    assert spoof["kpis"]["units_on_hand"] == stock["units"]
+    reg = client.get("/api/analytics", params={"period": "all", "category": "Sensors"}, headers=headers(ids["regional"])).json()
+    assert {r["label"] for r in reg["inventory_by_warehouse"]} == {"NWK"}
+
+
+def test_unknown_category_is_rejected(client, ids):
+    r = client.get("/api/analytics", params={"category": "Tyres"}, headers=headers(ids["director"]))
+    assert r.status_code == 400 and "Unknown category 'Tyres'" in r.json()["detail"] and "Brakes" in r.json()["detail"]
+
+
+def test_assistant_analytics_tool_takes_a_category(ids):
+    from app import services
+    schema = assistant.TOOL_BY_NAME["analytics_summary"]["schema"]["properties"]["category"]
+    assert schema["enum"] == services.category_groups()
+    d = json.loads(assistant.run_tool(load_employee(ids["director"]), "analytics_summary",
+                                      {"period": "all", "category": "Sensors", "sections": ["missing_by_group"]})[0])
+    assert d["category"] == "Sensors" and [r["label"] for r in d["missing_by_group"]] == ["Sensors"]
+    text, is_err = assistant.run_tool(load_employee(ids["director"]), "analytics_summary", {"category": "Tyres"})
+    assert is_err and "Unknown category" in text
+
+
+# --------------------------------------------------------------------------- part drawer: last 12 months of sales
+def test_part_sales_cover_the_last_12_months_with_zeros(client, ids):
+    from app import services
+    r = client.get("/api/parts/KV8Z-9402-Y", headers=headers(ids["director"])).json()
+    months = [m["order_month"] for m in r["monthly_sales"]]
+    end = db.as_of()
+    assert len(months) == 12 and months[-1] == f"{end.year:04d}-{end.month:02d}" and months == sorted(months)
+    for m in r["monthly_sales"]:
+        expected = db.scalar("SELECT COALESCE(SUM(quantity), 0) FROM v_sales WHERE part_number = ? AND order_month = ?",
+                             "KV8Z-9402-Y", m["order_month"])
+        assert m["units"] == expected
+    assert services._last_12_months([])[0]["units"] == 0                       # months without sales are zero
+
+
+def test_part_sales_follow_the_warehouse_scope(client, ids):
+    wh = client.get("/api/parts/KV8Z-9402-Y", headers=headers(ids["warehouse"])).json()["monthly_sales"]
+    for m in wh:
+        expected = db.scalar("""SELECT COALESCE(SUM(quantity), 0) FROM v_sales WHERE part_number = ? AND order_month = ?
+                                AND fulfillment_warehouse = 'ATL'""", "KV8Z-9402-Y", m["order_month"])
+        assert m["units"] == expected and "revenue_usd" not in m

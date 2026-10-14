@@ -71,6 +71,10 @@ def order_statuses() -> list[str]:
     return [r["status"] for r in db.rows("SELECT DISTINCT status FROM orders ORDER BY status")]
 
 
+def category_groups() -> list[str]:
+    return [r["g"] for r in db.rows("SELECT DISTINCT category_group g FROM parts ORDER BY 1")]
+
+
 def categories() -> list[str]:
     return [r["c"] for r in db.rows("""SELECT category_group c FROM parts UNION SELECT category FROM parts ORDER BY 1""")]
 
@@ -175,15 +179,23 @@ def part_detail(emp: Employee, part_number: str) -> dict | None:
                              WHERE (i.part_id = ? OR i.interchanges_with_part_id = ?) AND p2.status = 'Active'""",
                           p["part_id"], p["part_id"], p["part_id"])
     sc, sa = scope_sql(emp, "fulfillment_warehouse")
-    sales = db.rows(f"""SELECT order_month, SUM(quantity) units, ROUND(SUM(line_total_usd), 2) revenue_usd
-                        FROM v_sales WHERE part_id = ? {sc} GROUP BY order_month ORDER BY order_month DESC LIMIT 12""",
-                    p["part_id"], *sa)
+    sales = _last_12_months(db.rows(f"""SELECT order_month, SUM(quantity) units, ROUND(SUM(line_total_usd), 2) revenue_usd
+                                        FROM v_sales WHERE part_id = ? {sc} GROUP BY order_month""", p["part_id"], *sa))
     supplier = db.one("SELECT supplier_name, city, country FROM suppliers WHERE supplier_id = ?", p["primary_supplier_id"])
     return dict(part=p, replacement=replacement, supplier=supplier, stock_by_warehouse=stock, in_transit=transit,
                 fits=fits, equivalents=equivalents, monthly_sales=sales,
                 totals=dict(on_hand=sum(s["qty_on_hand"] for s in stock), available=sum(s["qty_available"] for s in stock),
                             in_transit=sum(s["qty_in_transit"] for s in stock), missing=sum(s["qty_missing"] for s in stock),
                             backordered=sum(s["qty_backordered"] for s in stock)))
+
+
+def _last_12_months(rows: list[dict]) -> list[dict]:
+    """The 12 calendar months ending at the data's 'as of' month, oldest first, with months without sales as zero."""
+    end = db.as_of()
+    months = [f"{y:04d}-{m:02d}" for y, m in
+              ((end.year + (end.month - 1 - i) // 12, (end.month - 1 - i) % 12 + 1) for i in range(11, -1, -1))]
+    by_month = {r["order_month"]: r for r in rows}
+    return [by_month.get(m, {"order_month": m, "units": 0, "revenue_usd": 0.0}) for m in months]
 
 
 def in_transit(emp: Employee, warehouse: str | None = None, part_number: str | None = None,

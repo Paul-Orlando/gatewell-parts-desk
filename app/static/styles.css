@@ -179,6 +179,7 @@ tbody tr.clickable:hover { background: var(--accent-soft); }
 .panel { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; min-width: 0; }
 .panel .sub { color: var(--ink-2); font-size: 13px; margin: -4px 0 10px; }
 .chart-box { position: relative; height: 260px; }
+.chart-box.small { height: 160px; }
 .panel details { margin-top: 8px; font-size: 13px; }
 .panel details summary { cursor: pointer; color: var(--accent); }
 

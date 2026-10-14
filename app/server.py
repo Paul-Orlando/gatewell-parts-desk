@@ -173,9 +173,10 @@ def cases(status: str | None = "active", department: str | None = None, q: str |
 
 # --------------------------------------------------------------------------- analytics
 @app.get("/api/analytics")
-def analytics_view(period: str = "90", warehouse: str | None = None, emp: Employee = Depends(current_employee)):
+def analytics_view(period: str = "90", warehouse: str | None = None, category: str | None = None,
+                   emp: Employee = Depends(current_employee)):
     require(emp, "analytics")
-    return redact(analytics.dashboard(emp, period, warehouse), emp)
+    return redact(analytics.dashboard(emp, period, warehouse, category), emp)
 
 
 # --------------------------------------------------------------------------- assistant
