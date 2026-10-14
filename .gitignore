@@ -1,0 +1,15 @@
+# secrets
+.env
+.env.*
+!.env.example
+
+# local environment and caches
+.venv/
+__pycache__/
+.pytest_cache/
+
+# runtime output
+logs/
+
+# personal Claude Code settings
+.claude/settings.local.json
