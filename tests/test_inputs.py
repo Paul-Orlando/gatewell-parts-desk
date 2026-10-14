@@ -207,3 +207,42 @@ def test_part_sales_follow_the_warehouse_scope(client, ids):
         expected = db.scalar("""SELECT COALESCE(SUM(quantity), 0) FROM v_sales WHERE part_number = ? AND order_month = ?
                                 AND fulfillment_warehouse = 'ATL'""", "KV8Z-9402-Y", m["order_month"])
         assert m["units"] == expected and "revenue_usd" not in m
+
+
+# --------------------------------------------------------------------------- inbound shipments past their ETA (retest 4)
+def test_shipments_past_their_eta_say_how_late(ids):
+    from datetime import datetime
+    from app import services
+    now = db.as_of()
+    for role in ("director", "warehouse"):                       # the note is public, so it survives redaction
+        text, is_err = assistant.run_tool(load_employee(ids[role]), "find_in_transit", {"limit": 50})
+        assert not is_err
+        for s in json.loads(text)["shipments"]:
+            eta_utc = db.scalar("SELECT MIN(eta_utc) FROM v_in_transit WHERE shipment_id = ?", s["shipment_id"])
+            late = (now - datetime.fromisoformat(eta_utc.replace("Z", "+00:00"))).days
+            if late >= 1:
+                assert s["note"].startswith(f"{late} day") and "past its ETA" in s["note"], s
+            else:
+                assert "note" not in s, s
+    holds = services.in_transit(load_employee(ids["director"]), status="Customs Hold")["shipments"]
+    assert holds and all("past its ETA" in s["note"] for s in holds)
+
+
+def test_missing_by_warehouse_and_category_answers_in_one_lookup(ids):
+    """Retest issue 3: 'which warehouse has the most missing stock, and which categories' in one lookup."""
+    d = json.loads(assistant.run_tool(load_employee(ids["director"]), "analytics_summary",
+                                      {"period": "all", "sections": ["missing_by_warehouse_group"]})[0])
+    rows = d["missing_by_warehouse_group"]
+    assert rows[0]["warehouse_code"] == "NWK" and rows[0]["label"] == "Sensors"                 # worst warehouse first
+    nwk = {r["label"]: r for r in rows if r["warehouse_code"] == "NWK"}
+    for group, r in nwk.items():
+        expected = db.one("""SELECT SUM(qty_missing) units, ROUND(SUM(qty_missing * i.unit_cost_usd)) value
+                             FROM inventory i JOIN parts p USING (part_id)
+                             WHERE warehouse_code = 'NWK' AND p.category_group = ? AND p.status = 'Active'""", group)
+        assert r["units"] == expected["units"] and r["missing_value_usd"] == expected["value"]
+    sup = json.loads(assistant.run_tool(load_employee(ids["cs_sup"]), "analytics_summary",
+                                        {"period": "all", "sections": ["missing_by_warehouse_group"]})[0])
+    assert sup["missing_by_warehouse_group"] and all("missing_value_usd" not in r for r in sup["missing_by_warehouse_group"])
+    wm = json.loads(assistant.run_tool(load_employee(ids["wh_manager"]), "analytics_summary",
+                                                        {"period": "all", "sections": ["missing_by_warehouse_group"]})[0])
+    assert {r["warehouse_code"] for r in wm["missing_by_warehouse_group"]} <= {"ATL"}             # scope still applies

@@ -24,6 +24,9 @@ SECTIONS = {
                               "SKUs to reorder, stock value. Use this to compare warehouses",
     "inventory_by_group": "Per category: units on hand, available, stock value",
     "missing_by_group": "Missing stock per category: units and value at cost",
+    "missing_by_warehouse_group": "Missing stock per warehouse and category (units and value at cost), largest first. "
+                                  "Use this for questions like 'which warehouse has the most missing stock, and in which "
+                                  "categories'",
     "low_stock": "Top 15 parts at or below reorder point, with days of cover",
     "stock_aging": "Stock by days since last activity (0-30, 31-90, 91-180, 180+)",
     "sales_by_month": "Every month: domestic and international revenue, orders, carrier cost, shipping charged",
@@ -129,6 +132,12 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
                                             ROUND(SUM(s.qty_missing * i.unit_cost_usd)) missing_value_usd
                                      FROM v_stock_position s JOIN inventory i USING (part_id, warehouse_code)
                                      WHERE s.qty_missing > 0 {si} GROUP BY 1 ORDER BY units DESC""", *sia),
+        missing_by_warehouse_group=db.rows(f"""SELECT s.warehouse_code, s.category_group label, SUM(s.qty_missing) units,
+                                                      ROUND(SUM(s.qty_missing * i.unit_cost_usd)) missing_value_usd
+                                               FROM v_stock_position s JOIN inventory i USING (part_id, warehouse_code)
+                                               WHERE s.qty_missing > 0 {si} GROUP BY 1, 2
+                                               ORDER BY SUM(SUM(s.qty_missing)) OVER (PARTITION BY s.warehouse_code) DESC,
+                                                        s.warehouse_code, units DESC""", *sia),
         sales_by_month=db.rows(f"""SELECT substr(o.ordered_at_utc, 1, 7) label,
                                           ROUND(SUM(CASE WHEN order_type = 'Domestic' THEN {rev} ELSE 0 END)) domestic_revenue_usd,
                                           ROUND(SUM(CASE WHEN order_type = 'International' THEN {rev} ELSE 0 END)) international_revenue_usd,

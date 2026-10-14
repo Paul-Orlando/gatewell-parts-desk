@@ -167,8 +167,17 @@ def test_prompt_rules_from_the_live_test(ids):
     for text in p.values():
         assert "You are talking to an employee, not the customer" in text and "You can tell the customer" in text   # B
         assert "list the options before quoting one, or ask which one" in text                                    # A
-        assert "say what they can\n  see instead and offer it" in text                                              # D
+        assert "look up what they can see about the\n  same thing and include it" in text                               # D
         assert "Prefer one broad lookup over many narrow ones" in text and "request them together" in text          # G
     offer = "Want me to open a support case?"                                                                       # C
     assert offer in p["cs"] and offer in p["cs_sup"]
     assert offer not in p["warehouse"] and offer not in p["director"]
+
+
+def test_prompt_rules_from_the_retest(ids):
+    for role in ("cs", "cs_sup", "warehouse", "director"):
+        text = assistant.system_prompt(load_employee(ids[role]))
+        assert "Never mention tool names, section names, field names" in text                     # 1: no internal names
+        assert "State tax, duty and policy details exactly as the tools give them" in text        # 2: no added details
+        assert "look that part up for that warehouse" in text                                     # 3: drill into the warehouse
+    assert "has a note saying how many days late" in assistant.TOOL_BY_NAME["find_in_transit"]["description"]

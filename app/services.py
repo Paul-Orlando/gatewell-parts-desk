@@ -5,6 +5,8 @@ Every function takes the signed-in Employee, applies their data scope, and retur
 dicts. Callers pass results through auth.redact() before anything leaves the server, so the
 screens and the assistant can never show an employee more than their role allows.
 """
+from datetime import datetime
+
 from . import db
 from .auth import Employee, scope_sql
 
@@ -213,8 +215,12 @@ def in_transit(emp: Employee, warehouse: str | None = None, part_number: str | N
                          COUNT(*) lines, SUM(quantity) units, MIN(eta_utc) eta_sort
                   FROM v_in_transit WHERE {' AND '.join(where)} GROUP BY shipment_id"""
     shipments = db.rows(f"{grouped} ORDER BY eta_sort LIMIT ?", *args, int(limit))
+    now = db.as_of()
     for s in shipments:
-        s.pop("eta_sort")
+        late = (now - datetime.fromisoformat(s.pop("eta_sort").replace("Z", "+00:00"))).days
+        if late >= 1:                              # say so in words, so an answer doesn't leave it out
+            eta = datetime.fromisoformat(s["eta_destination_local"])
+            s["note"] = f"{late} day{'s' if late != 1 else ''} past its ETA ({eta.strftime('%b')} {eta.day})"
     t = db.one(f"SELECT COUNT(*) shipments, SUM(units) units FROM ({grouped})", *args)
     return {"count": len(shipments), "total": t["shipments"], "total_units": t["units"] or 0, "shipments": shipments}
 

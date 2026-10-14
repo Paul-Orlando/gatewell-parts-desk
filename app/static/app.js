@@ -569,7 +569,9 @@ async function viewAnalytics() {
     S.charts.forEach((c) => c.destroy()); S.charts = [];
     const d = await api(`/api/analytics?${qs(st)}`);
     $("#an-wh").innerHTML = opt("", d.warehouses.length > 1 ? (S.emp.scope === "Company" ? "All warehouses" : `All in ${S.emp.scope_label.toLowerCase()}`) : d.warehouses[0], st.warehouse) + (d.warehouses.length > 1 ? d.warehouses.map((w) => opt(w, w, st.warehouse)).join("") : "");
-    $("#an-scope").textContent = `Your view: ${d.scope}. Data as of ${d.as_of}.`;
+    const wh = S.meta.warehouses.find((w) => w.warehouse_code === d.warehouse);
+    const showing = [wh ? `${wh.city} (${wh.warehouse_code})` : "", d.category !== "All categories" ? d.category : ""].filter(Boolean);
+    $("#an-scope").textContent = `${showing.length ? `Showing: ${showing.join(", ")}. ` : ""}Your view: ${d.scope}. Data as of ${d.as_of}.`;
     const k = d.kpis, cost = has(k, "stock_value_usd"), split = !d.note;   // split = shipping and FX can be shown
     const period = { 30: "last 30 days", 90: "last 90 days", 365: "last 12 months", all: "all time" }[st.period]
       + (st.category ? `, ${st.category} only` : "");
@@ -587,13 +589,14 @@ async function viewAnalytics() {
         ${tableView(d.shipping_by_carrier, [["label", "Carrier"], ["orders", "Orders", 1], ...(cost ? [["avg_carrier_cost_usd", "Avg cost", 1, (v) => usd(v)], ["cost_pct_of_revenue", "% of revenue", 1, (v) => `${v}%`]] : []), ["avg_charged_usd", "Avg charged", 1, (v) => usd(v)]])}</div>` : "",
       `<div class="panel"><h3>Average list price by category</h3><p class="sub">OEM, Premium and Value parts</p><div class="chart-box"><canvas id="c-price"></canvas></div>
         ${tableView(d.price_by_group, [["label", "Category"], ["oem_avg_price_usd", "OEM", 1, (v) => usd(v)], ["premium_avg_price_usd", "Premium", 1, (v) => usd(v)], ["value_avg_price_usd", "Value", 1, (v) => usd(v)], ...(cost ? [["avg_cost_pct_of_list", "Cost % of list", 1, (v) => `${v}%`]] : [])])}</div>`,
-      `<div class="panel"><h3>Units on hand by category</h3><p class="sub">Right now${only}</p><div class="chart-box"><canvas id="c-inv-group"></canvas></div>
+      // with a category selected these two would be a single bar; the KPIs and Top parts cover them
+      st.category ? "" : `<div class="panel"><h3>Units on hand by category</h3><p class="sub">Right now${only}</p><div class="chart-box"><canvas id="c-inv-group"></canvas></div>
         ${tableView(d.inventory_by_group, [["label", "Category"], ["units", "On hand", 1], ["available", "Available", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>`,
       `<div class="panel"><h3>Units on hand by warehouse</h3><p class="sub">Right now${only}, with units missing in the table</p><div class="chart-box"><canvas id="c-inv-wh"></canvas></div>
         ${tableView(d.inventory_by_warehouse, [["label", "Warehouse"], ["units", "On hand", 1], ["in_transit", "In transit", 1], ["missing", "Missing", 1], ["needs_reorder", "Low-stock parts", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>`,
       `<div class="panel"><h3>How long stock has sat</h3><p class="sub">Units by days since last sale or receipt${only}</p><div class="chart-box"><canvas id="c-aging"></canvas></div>
         ${tableView(d.stock_aging, [["label", "Age"], ["units", "Units", 1], ...(cost ? [["stock_value_usd", "Value", 1, (v) => usd(v, 0)]] : [])])}</div>`,
-      `<div class="panel"><h3>Revenue by category</h3><p class="sub">${esc(period)}</p><div class="chart-box"><canvas id="c-sales-group"></canvas></div>
+      st.category ? "" : `<div class="panel"><h3>Revenue by category</h3><p class="sub">${esc(period)}</p><div class="chart-box"><canvas id="c-sales-group"></canvas></div>
         ${tableView(d.sales_by_group, [["label", "Category"], ["units", "Units", 1], ["revenue_usd", "Revenue", 1, (v) => usd(v, 0)]])}</div>`,
     ].filter(Boolean);
     const kpi = (v, l, s = "") => `<div class="kpi"><div class="v">${v}</div><div class="l">${esc(l)}</div>${s ? `<div class="s">${esc(s)}</div>` : ""}</div>`;

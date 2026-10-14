@@ -115,7 +115,7 @@ PUBLIC_FIELDS = {
     "period", "scope", "scope_note", "as_of", "kpis", "label", "orders", "units_on_hand", "units_available",
     "units_in_transit", "units_missing", "units_backordered", "units_sold", "skus_needing_reorder",
     "skus_out_of_stock", "skus_stocked", "inventory_by_group", "inventory_by_warehouse", "low_stock",
-    "missing_by_group", "stock_aging", "sales_by_month", "sales_by_quarter", "first_order_date",
+    "missing_by_group", "missing_by_warehouse_group", "stock_aging", "sales_by_month", "sales_by_quarter", "first_order_date",
     "last_order_date", "sales_by_group", "revenue_by_region",
     "revenue_by_country", "top_parts", "price_by_group", "oem_avg_price_usd", "premium_avg_price_usd",
     "value_avg_price_usd", "shipping_by_carrier", "shipping_by_service",
