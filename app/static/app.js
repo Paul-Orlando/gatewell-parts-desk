@@ -61,7 +61,7 @@ const PERSONAS = [
   { group: "Front line", title: "Customer Service Rep", label: "Customer Service Rep",
     sees: "Every warehouse, prices, quotes and support cases.", hidden: "Our costs, analytics" },
   { group: "Front line", title: "Warehouse Associate", warehouse: "ATL", label: "Warehouse Associate, Atlanta",
-    sees: "Stock, bins and Atlanta's orders.", hidden: "Prices, costs, customer names" },
+    sees: "Stock, bins, list prices and Atlanta's orders.", hidden: "Customer prices, costs, customer names" },
 ];
 const GROUP_NOTE = { "Managers": "Wider view, including costs", "Front line": "Day-to-day work" };
 
@@ -287,12 +287,13 @@ async function partDrawer(pn) {
 
 function renderQuote(q) {
   if (!q.ok) return `<p class="note">${esc(q.message)}</p>`;
-  const local = q.currency && q.currency !== "USD";
+  const charges = q.options.some((o) => has(o, "cost_usd"));     // roles without prices get carriers and dates only
+  const local = charges && q.currency && q.currency !== "USD";
   const fq = q.full_quote && q.full_quote.ok ? q.full_quote : null;
   return `<p class="small muted" style="margin:10px 0 6px">Ships from ${esc(q.ship_from)} to ${esc(q.ship_to)}, zone ${esc(q.zone)}, ${n(q.package_count)} package(s), ${n(q.total_weight_lb, 1)} lb. ${q.notes.map(esc).join(" ")}</p>
-    <div class="table-wrap"><table><thead><tr><th>Carrier</th><th>Service</th><th class="num">Shipping</th>${local ? `<th class="num">In ${esc(q.currency)}</th>` : ""}${fq ? `<th class="num">Customer total (${esc(fq.currency)})</th>` : ""}<th>Delivery by</th></tr></thead><tbody>
+    <div class="table-wrap"><table><thead><tr><th>Carrier</th><th>Service</th>${charges ? '<th class="num">Shipping</th>' : ""}${local ? `<th class="num">In ${esc(q.currency)}</th>` : ""}${fq ? `<th class="num">Customer total (${esc(fq.currency)})</th>` : ""}<th>Delivery by</th></tr></thead><tbody>
     ${q.options.map((o, i) => `<tr><td><b>${esc(o.carrier)}</b></td><td>${esc(o.service)}${o.customer_pays_usd === 0 ? ' <span class="status good">Free for customer</span>' : ""}</td>
-      <td class="num">${usd(o.cost_usd)}</td>${local ? `<td class="num">${money(o.cost_local, q.currency)}</td>` : ""}${fq ? `<td class="num">${money(fq.options[i]?.total, fq.currency)}</td>` : ""}<td style="white-space:nowrap">${dayLabel(o.estimated_delivery_by)}</td></tr>`).join("")}
+      ${charges ? `<td class="num">${usd(o.cost_usd)}</td>` : ""}${local ? `<td class="num">${money(o.cost_local, q.currency)}</td>` : ""}${fq ? `<td class="num">${money(fq.options[i]?.total, fq.currency)}</td>` : ""}<td style="white-space:nowrap">${dayLabel(o.estimated_delivery_by)}</td></tr>`).join("")}
     </tbody></table></div>
     ${q.unavailable.length ? `<p class="small muted" style="margin-top:8px">Not available: ${q.unavailable.map((u) => `${esc(u.service)} (${esc(u.reason)})`).join("; ")}</p>` : ""}
     ${fq ? `<p class="small muted">${esc(fq.import_tax)}</p>` : ""}

@@ -46,14 +46,22 @@ PERMISSIONS = {
                              customer=True, analytics=True, cases=True, create_cases=False),
 }
 
-# Fields removed from every response unless the role is allowed to see them.
+# Fields removed from every response unless the role is allowed to see them. The public list price
+# (list_price_usd) stays visible to everyone; a customer's own price does not.
 COST_FIELDS = {"unit_cost_usd", "unit_cost_local", "stock_value_usd", "carrier_cost_usd", "shipping_margin_usd",
                "po_value_usd", "po_value_local", "fx_gain_loss_usd", "variance_value_usd", "missing_value_usd",
-               "inventory_value_usd"}
+               "inventory_value_usd",
+               # figures worked out from our costs (analytics)
+               "avg_cost_pct_of_list", "avg_carrier_cost_usd", "cost_pct_of_revenue", "shipping_cost_pct_of_revenue"}
 MONEY_FIELDS = {"unit_price_usd", "unit_price_local", "line_total_usd", "line_total_local", "order_total_usd",
                 "total_due_local", "goods_total_local", "shipping_local", "shipping_usd", "import_tax_local",
                 "payment_status", "paid_at_utc", "payment_fx_rate", "payment_terms", "discount_pct", "price_tier",
-                "fx_rate_units_per_usd", "fx_margin_pct", "core_charge_usd", "billing_currency", "revenue_usd"}
+                "fx_rate_units_per_usd", "fx_margin_pct", "core_charge_usd", "billing_currency", "revenue_usd",
+                # a customer's price and core charge (get_part_price)
+                "subtotal_usd", "subtotal_local", "core_charge_local",
+                # shipping charges (quote_shipping): totals and the per-package breakdown
+                "cost_usd", "cost_local", "customer_pays_usd", "transportation_usd", "fuel_surcharge_usd",
+                "package_total_usd", "surcharges"}
 CUSTOMER_FIELDS = {"customer_name", "primary_vehicle_id", "customer_since"}
 
 

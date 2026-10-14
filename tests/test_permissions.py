@@ -80,3 +80,56 @@ def test_supervisor_analytics_hide_costs(client, ids):
     d = client.get("/api/analytics", headers=headers(ids["cs_sup"])).json()
     assert not _keys(d) & COST
     assert "revenue_usd" in d["kpis"]
+
+
+# Customer-specific prices and shipping charges, and figures worked out from our costs
+CUSTOMER_PRICE = {"subtotal_usd", "subtotal_local", "core_charge_local", "unit_price_usd", "unit_price_local"}
+SHIPPING_CHARGES = {"cost_usd", "cost_local", "customer_pays_usd", "transportation_usd", "fuel_surcharge_usd",
+                    "package_total_usd", "surcharges"}
+DERIVED_COST = {"avg_cost_pct_of_list", "avg_carrier_cost_usd", "cost_pct_of_revenue", "shipping_cost_pct_of_revenue"}
+
+
+def _dealer_with_discount():
+    from app import db
+    return db.one("SELECT customer_id, discount_pct FROM customers WHERE customer_type = 'Dealership' AND discount_pct > 0 "
+                  "AND billing_currency = 'USD' ORDER BY customer_id LIMIT 1")
+
+
+def test_warehouse_staff_cannot_get_a_customer_price_from_the_assistant(ids):
+    from app import assistant, db
+    from app.auth import load_employee
+    pn = db.scalar("SELECT part_number FROM parts WHERE status = 'Active' AND list_price_usd > 50 ORDER BY part_number LIMIT 1")
+    dealer = _dealer_with_discount()
+    txt, err = assistant.run_tool(load_employee(ids["warehouse"]), "get_part_price",
+                                  {"part_number": pn, "customer_id": dealer["customer_id"]})
+    assert not err
+    import json
+    out = json.loads(txt)
+    assert not _keys(out) & (CUSTOMER_PRICE | MONEY)
+    list_price = db.scalar("SELECT list_price_usd FROM parts WHERE part_number = ?", pn)
+    dealer_price = round(list_price * (1 - dealer["discount_pct"]), 2)
+    assert f"{dealer_price}" not in txt and f"{dealer_price:.2f}" not in txt
+    # customer service still gets the dealer price
+    cs, _ = assistant.run_tool(load_employee(ids["cs"]), "get_part_price", {"part_number": pn, "customer_id": dealer["customer_id"]})
+    assert json.loads(cs)["subtotal_usd"] == dealer_price
+
+
+def test_warehouse_shipping_quote_hides_charges_but_keeps_options(client, ids):
+    from app import db
+    pn = db.scalar("""SELECT p.part_number FROM parts p JOIN v_stock_position s ON s.part_id = p.part_id
+                      WHERE p.status = 'Active' AND p.hazmat = 0 AND s.warehouse_code = 'ATL' AND s.qty_available > 0
+                      ORDER BY p.part_number LIMIT 1""")
+    body = {"items": [{"part_number": pn, "quantity": 1}], "ship_to_state": "GA"}
+    wh = client.post("/api/quote", json=body, headers=headers(ids["warehouse"])).json()
+    assert wh["ok"] and wh["options"]
+    assert not _keys(wh) & SHIPPING_CHARGES
+    assert all(o.get("carrier") and o.get("estimated_delivery_by") for o in wh["options"])
+    cs = client.post("/api/quote", json=body, headers=headers(ids["cs"])).json()
+    assert {"cost_usd", "customer_pays_usd"} <= _keys(cs)
+
+
+def test_supervisor_analytics_hide_figures_derived_from_costs(client, ids):
+    sup = _keys(client.get("/api/analytics", params={"period": "365"}, headers=headers(ids["cs_sup"])).json())
+    assert not sup & DERIVED_COST
+    director = _keys(client.get("/api/analytics", params={"period": "365"}, headers=headers(ids["director"])).json())
+    assert DERIVED_COST <= director
