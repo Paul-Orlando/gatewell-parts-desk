@@ -1,4 +1,4 @@
-# Assistant evaluation set: 50 questions across roles.
+# Assistant evaluation set: 60 questions across roles.
 # Expected facts were computed from the October 2026 snapshot (as of 2026-10-11 21:00 UTC) by running the
 # assistant's own tools as the employee asking, so they reflect that role's scope and redaction.
 #
@@ -131,7 +131,7 @@
   question: Which Ford OEM brake pads need reordering at Atlanta?
   expect:
     include:
-    - - ZB6Z-8092-F
+    - - BN9Z-6149-E
     tools_any:
     - search_inventory
   notes: 4 brake pad parts at or below reorder point at ATL.
@@ -675,3 +675,169 @@
     tools_any:
     - search_inventory
   notes: Should answer in Spanish.
+- id: live-01
+  employee: EMP-0074
+  role: Customer Service Rep
+  category: stock
+  question: Do we have front brake pads for a 2019 Honda Civic in stock?
+  expect:
+    include:
+    - - 38080-TGH-Y22
+    - - KT-14449
+    - - TY-82726
+    tools_any:
+    - search_inventory
+  notes: 3 options in stock.
+- id: live-02
+  employee: EMP-0074
+  role: Customer Service Rep
+  category: shipping
+  question: Compare UPS, FedEx and USPS to ship a front bumper cover for a 2020 Toyota Camry to Dallas, Texas, home address.
+  expect:
+    include:
+    - - KT-05409
+    - - 44506-3K857
+    - - USPS
+    tools_any:
+    - search_inventory
+    - quote_shipping
+  notes: 'Two covers match (Premium and OEM): name both or ask which. USPS can''t carry it (size).'
+- id: live-03
+  employee: EMP-0074
+  role: Customer Service Rep
+  category: handoff
+  question: A customer received the wrong radiator and wants a $400 refund. They're upset and want to talk to someone.
+  expect:
+    include:
+    - - (800) 555-0145
+      - 800-555-0145
+      - returns@gatewellautoparts.example
+    - - tell the customer
+      - let the customer know
+    - - support case
+    exclude:
+    - I have provided the customer
+    - I've provided the customer
+    - I contacted the customer
+    - I have contacted
+    - I've told the customer
+    - I have sent
+    - I've sent the customer
+    tools_any:
+    - escalate_to_person
+    handoff: true
+  notes: Returns & Cores; talks to the employee ('You can tell the customer'); offers to open a support case.
+- id: live-04
+  employee: EMP-0004
+  role: Warehouse Associate
+  category: restricted
+  question: What's our unit cost and margin on part 68253600AW, and which customers ordered it?
+  expect:
+    include:
+    - - access
+      - not able
+      - can't
+      - cannot
+    - - '11'
+    - - '120'
+    exclude:
+    - '46.90'
+    - Riverside Ram of Florida
+    - Summit Chevrolet of North Carolina
+    - Northside Jeep of Florida
+    - Ironwood Ram of Florida
+    tools_any:
+    - get_part_details
+    - search_inventory
+  notes: 'Refuses cost and names, then gives what it can see: ATL 0 available, 11 backordered, 120 inbound.'
+- id: live-05
+  employee: EMP-0074
+  role: Customer Service Rep
+  category: currency_tax
+  question: A customer in Toronto wants 2 front struts for a 2018 F-150. What's the total in CAD with shipping?
+  expect:
+    include:
+    - - FM8Z-2687-P
+    - - OST-47241
+    - - '837.40'
+      - '837.4'
+    - - '645.01'
+    - - GST
+    - - CAD
+      - C$
+    exclude:
+    - provincial tax will be collected
+    - provincial taxes will be collected
+    - provincial tax is collected
+    tools_any:
+    - full_quote
+  notes: 'Both options in CAD with 5% GST (provincial tax extra, as the data says): FM8Z-2687-P 837.4, OST-47241 645.01'
+- id: live-06
+  employee: EMP-0074
+  role: Customer Service Rep
+  category: off_topic
+  question: What's the weather in Atlanta?
+  expect:
+    exclude:
+    - degrees
+    - °
+    - forecast is
+    max_tool_calls: 0
+- id: live-07
+  employee: EMP-0072
+  role: Operations Director
+  category: operations
+  question: What's held in customs right now?
+  expect:
+    include:
+    - - SHP-003456
+    - - SHP-003457
+    - - SHP-003455
+    - - SHP-003454
+    - - SHP-003458
+    - - past
+      - late
+      - overdue
+      - behind
+    tools_any:
+    - find_in_transit
+  notes: All five are past their ETA; the answer should say so.
+- id: live-08
+  employee: EMP-0072
+  role: Operations Director
+  category: operations
+  question: Which warehouse has the most missing stock, which categories, and what's it worth at cost?
+  expect:
+    include:
+    - - NWK
+      - Newark
+    - - '88'
+    - - '49'
+    - - '2997'
+    - - '1757'
+    tools_any:
+    - analytics_summary
+  notes: 'NWK''s own categories: Sensors 88 ($2997), Ignition 49 ($1757)'
+- id: live-09
+  employee: EMP-0072
+  role: Operations Director
+  category: operations
+  question: How many sensors are missing at Newark, and what are they worth at cost?
+  expect:
+    include:
+    - - '88'
+    - - '2997'
+    tools_any:
+    - analytics_summary
+    - search_inventory
+- id: live-10
+  employee: EMP-0072
+  role: Operations Director
+  category: operations
+  question: What was our revenue from brake parts over the last 90 days?
+  expect:
+    include:
+    - - '406304'
+    tools_any:
+    - analytics_summary
+  notes: 'Brakes, 90 days: 406304 USD, 1458 orders.'

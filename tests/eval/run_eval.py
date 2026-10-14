@@ -5,7 +5,7 @@ This calls the real OpenRouter API, so it costs money and is kept out of the nor
 (pytest only collects test_*.py). Each question is asked as the employee named in the file,
 through assistant.chat(), with the same role-based tools, scope and redaction as the app.
 
-    .venv\\Scripts\\python tests\\eval\\run_eval.py                      # all 50 questions
+    .venv\\Scripts\\python tests\\eval\\run_eval.py                      # all 60 questions
     .venv\\Scripts\\python tests\\eval\\run_eval.py --only fit-01 tax-01  # a few questions
     .venv\\Scripts\\python tests\\eval\\run_eval.py --category restricted
     .venv\\Scripts\\python tests\\eval\\run_eval.py --model google/gemini-3.1-flash   # compare a model
@@ -51,6 +51,7 @@ def norm(s: str) -> str:
 
 
 NUMBER = re.compile(r"^-?\d+(\.\d+)?$")
+INTERNAL_NAMES: list[str] = []      # tool and analytics section names, set in main(); no reply may contain them
 ASKS_BACK = re.compile(r"\?|let me know (which|what)|please (confirm|tell me|specify)|which (engine|one|year|warehouse) ")
 
 
@@ -83,6 +84,9 @@ def grade(item: dict, reply: str, tools: list[dict], handoff: bool, first_reply:
         problems.append("expected a follow-up question")
     if "max_tool_calls" in exp and len(tools) > exp["max_tool_calls"]:
         problems.append(f"too many tool calls ({len(tools)} > {exp['max_tool_calls']})")
+    leaked = [n for n in INTERNAL_NAMES if n in reply]
+    if leaked:
+        problems.append(f"mentions internal names: {', '.join(leaked)}")
     return problems
 
 
@@ -119,8 +123,9 @@ def main() -> int:
         return 2
 
     import yaml
-    from app import assistant
+    from app import analytics, assistant
     from app.auth import load_employee
+    INTERNAL_NAMES[:] = [t["name"] for t in assistant.TOOLS] + list(analytics.SECTIONS)
 
     items = yaml.safe_load(Path(args.questions).read_text(encoding="utf-8"))
     if args.only:
