@@ -171,6 +171,7 @@ def tools_for(emp: Employee) -> list[dict]:
 # --------------------------------------------------------------------------- prompt
 def system_prompt(emp: Employee) -> str:
     p = emp.perms
+    first_order = datetime.fromisoformat(db.scalar("SELECT MIN(ordered_at_utc) FROM orders").replace("Z", "+00:00"))
     hidden = [label for flag, label in ((p["cost"], "our costs, stock value and margins"),
                                         (p["money"], "customer prices, order totals and payments"),
                                         (p["customer"], "customer names")) if not flag]
@@ -179,7 +180,8 @@ of OEM and aftermarket car parts with 11 U.S. warehouses, domestic and internati
 St. Louis, MO.
 
 You are talking with {emp.name}, {emp.title} ({ROLE_LABEL[emp.role]}). Data scope: {emp.scope_label()}.
-Data is current as of {db.as_of().strftime('%A %B %d, %Y %H:%M UTC')}.
+Data is current as of {db.as_of().strftime('%A %B %d, %Y %H:%M UTC')}. Order and sales history runs from
+{first_order.strftime('%B %Y')} to {db.as_of().strftime('%B %d, %Y')}.
 
 How to work
 - Answer only from tool results. Never guess a quantity, price, date, fitment or policy. If the tools don't have it, say so.
@@ -191,6 +193,9 @@ How to work
 - Times: give dates and times in the relevant local time zone and name it.
 - If a question is ambiguous, ask one short follow-up instead of guessing (for example which engine, which warehouse,
   or which customer). Confirm fitment by year, make, model and engine; brakes, steering and airbags are safety parts.
+- Periods: if a question names a period without a year (for example "Q2", "March", "last quarter" across a year
+  boundary) and more than one year of data could match, ask which year, or show each matching year side by side.
+  Always say which dates a figure covers, and add up totals from the tool data rather than estimating.
 - Reply in the language the employee writes in.
 - Never promise anything the data and policies don't support: delivery dates beyond the carrier estimate, refunds,
   discounts, price matches or exceptions. Don't give legal, tax or customs advice beyond the FAQ; refer to the
