@@ -132,6 +132,7 @@ function route() {
   });
   $(".rail").classList.remove("open");
   $("#page-title").textContent = TAB[S.route][0];
+  $("#page-title").title = TAB[S.route][0];          // full title on hover if it's cut short on a phone
   closeDrawer();
   S.charts.forEach((c) => c.destroy()); S.charts = [];
   ({ inventory: viewInventory, orders: viewOrders, assistant: viewAssistant, cases: viewCases, teams: viewTeams,
