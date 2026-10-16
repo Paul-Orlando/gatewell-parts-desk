@@ -82,7 +82,7 @@ def test_plural_search_words_find_singular_part_names(ids):
 
 # --------------------------------------------------------------------------- analytics sections (live test fix F)
 META = {"period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "as_of_display", "warehouses", "stock_as_of",
-        "period_covers", "section_notes"}
+        "period_covers", "section_notes", "section_totals", "how_to_read"}
 
 
 def test_analytics_sections_list_matches_the_dashboard(ids):
@@ -96,7 +96,7 @@ def test_analytics_sections_list_matches_the_dashboard(ids):
 
 
 def test_unknown_analytics_section_is_rejected(ids):
-    text, is_err = assistant.run_tool(load_employee(ids["director"]), "analytics_summary", {"sections": ["missing_by_warehouse"]})
+    text, is_err = assistant.run_tool(load_employee(ids["director"]), "analytics_summary", {"sections": ["missing_by_region"]})
     assert is_err and "Unknown analytics section" in text and "inventory_by_warehouse" in text
 
 
@@ -281,3 +281,24 @@ def test_missing_sections_come_with_the_exact_totals(ids):
                                       {"warehouse": "NWK", "sections": ["missing_by_group"]})[0])
     assert d["kpis"]["units_missing"] == 140 and d["kpis"]["missing_value_usd"] == 4951
     assert sum(r["missing_value_usd"] for r in d["missing_by_group"]) != 4951       # why the rows mustn't be added
+
+
+def test_search_orders_totals_cover_every_match(ids):
+    from app import db
+    emp = load_employee(ids["director"])
+    text, is_err = assistant.run_tool(emp, "search_orders", {"warehouse": "NWK", "limit": 5})
+    d = json.loads(text)
+    assert not is_err and d["count"] < d["total"] and d["totals"]["orders"] == d["total"]
+    exact = db.scalar("SELECT ROUND(SUM(order_total_usd), 2) FROM orders WHERE fulfillment_warehouse = 'NWK'")
+    assert d["totals"]["order_total_usd"] == exact
+    wh = json.loads(assistant.run_tool(load_employee(ids["warehouse"]), "search_orders", {"limit": 5})[0])
+    assert "orders" in wh["totals"] and "order_total_usd" not in wh["totals"]          # money stays hidden
+
+
+def test_oversized_results_drop_whole_sections_and_stay_valid_json(ids):
+    text, _ = assistant.run_tool(load_employee(ids["director"]), "analytics_summary", {"period": "all"})
+    d = json.loads(text)                                      # never cut mid-way
+    assert len(text) <= assistant.MAX_RESULT_CHARS and "Only part of this result fits" in d["_shortened"]
+    big = {"a": "x" * 9000, "b": "y" * 9000, "c": 1}
+    out = json.loads(assistant._fit(big))
+    assert out["c"] == 1 and "was left out" in out["_shortened"]

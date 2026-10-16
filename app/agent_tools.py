@@ -271,6 +271,8 @@ def quote_shipping(items, ship_to_country="US", ship_to_state=None, residential=
         notes.append("Import tax is paid by the importer on arrival (DAP)." if dealer else
                      f'These amounts exclude import tax: {country["import_tax_name"]} {country["import_tax_pct"]}% '
                      "collected at checkout (DDP). A total with tax comes from a full customer quote.")
+    notes.append("These are shipping charges for the whole shipment. Don't add a price to them: a customer's total "
+                 "comes from a full quote.")
     c.close()
     return dict(ok=True, ship_from=f'{whrow["warehouse_name"]} ({whrow["city"]}, {whrow["state"]})', warehouse_code=wh,
                 ship_to=(ship_to_state.upper() + ", US") if domestic else country["country_name"], zone=zone,

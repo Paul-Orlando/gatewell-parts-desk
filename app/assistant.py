@@ -191,12 +191,15 @@ def _analytics(emp, a):
                                 + ", ".join(analytics.SECTIONS) + ".")
     d = analytics.dashboard(emp, a.get("period", "90"), a.get("warehouse"), a.get("category"))
     meta = ("period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "as_of_display", "stock_as_of",
-            "period_covers")
+            "period_covers", "how_to_read")
     if secs and any(s.startswith("missing_") for s in secs):
         secs = list(secs) + ["kpis"]          # the exact missing totals, so rounded rows are never added up
+    if secs and "missing_by_warehouse_group" in secs:
+        secs = list(secs) + ["missing_by_warehouse"]      # exact per-warehouse totals next to the category rows
     out = {k: v for k, v in d.items() if not secs or k in secs or k in meta}
-    # one note per returned section: stock counts are point in time, sales figures cover the period
+    # one note and one exact total per returned section, so the model never has to add rows up
     out["section_notes"] = {k: v for k, v in d["section_notes"].items() if k in out}
+    out["section_totals"] = {k: v for k, v in d["section_totals"].items() if k in out}
     return out
 
 
@@ -320,9 +323,11 @@ How to work
   Central"); never in UTC.
 - When a customer name isn't found, search once more at most, and only with an obvious spelling fix. Then ask the
   employee for the order number or the exact customer name. Don't keep trying variations.
-- Totals: use the total fields the tools give (total, totals, KPIs); never add up rounded rows. When 'count' is less
-  than 'total', or a result has '_shortened', the rows are only a sample: say so, and never add up, average or
-  extrapolate them. If no tool gives the figure asked for, say you can't get it.
+- Never add, subtract or average figures yourself. Report totals and figures exactly as the tools return them. If
+  you need a total the tool didn't return, call the section that has it (for example missing_by_warehouse for
+  per-warehouse missing stock, section_totals for a breakdown's total, full_quote for a customer's total).
+  When 'count' is less than 'total', or a result has '_shortened', the rows are only a sample: say so, and never add
+  up, average or extrapolate them. If no tool gives the figure asked for, say you can't get it.
 - Money and tax: shipping rates are estimates from our rate cards (say so); exchange rates are today's rates.
   A customer total that includes import tax must come from full_quote (when you have it), never from adding up
   a price and a shipping quote yourself. State tax, duty and policy details exactly as the tools give them (for
@@ -460,9 +465,17 @@ def _fit(out) -> str:
             cut.setdefault(path, len(rows))
             parent[key] = rows[:keep]
             txt = json.dumps(out, default=str)
-        if cut:
+        dropped = []
+        while len(txt) > MAX_RESULT_CHARS * 0.9 and len(out) > 1:   # still too big: leave out whole sections, never cut JSON
+            key = max(out, key=lambda k: len(json.dumps(out[k], default=str)))
+            dropped.append(key)
+            del out[key]
+            txt = json.dumps(out, default=str)
+        if cut or dropped:
+            kept = {p: n for p, n in cut.items() if p.split(".")[0] not in dropped}
             out["_shortened"] = ("Only part of this result fits: " +
-                                 "; ".join(f"'{p}' shows {len(_dig(out, p))} of {n} rows" for p, n in cut.items()) +
+                                 "; ".join([f"'{p}' shows {len(_dig(out, p))} of {n} rows" for p, n in kept.items()] +
+                                           [f"'{k}' was left out (ask for it on its own)" for k in dropped]) +
                                  ". Count and total fields still cover everything. Don't add up the rows shown; "
                                  "ask a narrower question for the rest.")
             txt = json.dumps(out, default=str)

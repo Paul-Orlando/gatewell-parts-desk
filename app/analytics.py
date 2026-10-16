@@ -23,41 +23,53 @@ SECTIONS = {
     "inventory_by_warehouse": "Per warehouse (point in time): units on hand, in transit, missing units and missing "
                               "value at cost, SKUs to reorder, stock value. Use this to compare warehouses",
     "inventory_by_group": "Per category (point in time): units on hand, available, stock value",
-    "missing_by_group": "Missing stock per category (point in time): units and value at cost. Rows are rounded; for the overall "
-                        "total use units_missing and missing_value_usd in kpis (always included), never the sum of rows",
-    "missing_by_warehouse_group": "Missing stock per warehouse and category (point in time; units and value at cost), largest first. "
-                                  "Use this for questions like 'which warehouse has the most missing stock, and in which "
-                                  "categories'. For overall totals use kpis (always included)",
-    "low_stock": "Top 15 parts at or below reorder point (point in time), with days of cover and a short suggested action",
+    "missing_by_warehouse": "Missing stock per warehouse (point in time): units, value at cost, SKUs. Use this for "
+                            "'which warehouse has the most missing stock'. Exact per-warehouse totals; never add up "
+                            "missing_by_warehouse_group rows",
+    "missing_by_group": "Missing stock per category (point in time): units and value at cost. Rows are rounded; the exact "
+                        "overall total is in section_totals and kpis, never the sum of rows",
+    "missing_by_warehouse_group": "Missing stock per warehouse and category (point in time; units and value at cost), largest "
+                                  "first. Use this for 'in which categories' questions. Per-warehouse totals come with it in "
+                                  "missing_by_warehouse; the overall total is in section_totals",
+    "low_stock": "Top 15 parts at or below reorder point (point in time), with days of cover and a short suggested action. "
+                 "A ranked sample: don't add these up",
     "stock_aging": "Stock by days since last activity, point in time (0-30, 31-90, 91-180, 180+)",
     "sales_by_month": "Every month: domestic and international revenue, orders, carrier cost, shipping charged",
     "sales_by_quarter": "Every quarter of every year (e.g. 2025-Q2, 2026-Q2): orders and revenue, already totalled",
     "revenue_by_region": "Orders and revenue by customer region (selected period)",
     "revenue_by_country": "International orders, revenue, billed amount and FX gain or loss by country (selected period)",
     "sales_by_group": "Units sold and revenue by category (selected period)",
-    "top_parts": "Top 10 parts by revenue (selected period)",
+    "top_parts": "Top 10 parts by revenue (selected period). A ranked sample: don't add these up",
     "price_by_group": "Average list price by category and tier (OEM, Premium, Value)",
     "shipping_by_carrier": "Orders, average carrier cost and average charged per carrier (selected period)",
     "shipping_by_service": "Orders and average cost and charge per shipping service (selected period)",
 }
 
 
-POINT_IN_TIME = ("inventory_by_warehouse", "inventory_by_group", "missing_by_group", "missing_by_warehouse_group",
-                 "low_stock", "stock_aging")
+POINT_IN_TIME = ("inventory_by_warehouse", "inventory_by_group", "missing_by_warehouse", "missing_by_group",
+                 "missing_by_warehouse_group", "low_stock", "stock_aging")
+NO_TOTAL = ("kpis", "low_stock", "top_parts", "price_by_group")      # samples and averages: nothing to total
 WHOLE_HISTORY = ("sales_by_month", "sales_by_quarter")
 
 
+HOW_TO_READ = ("Point-in-time figures are counts at the as-of time, not tied to the sales period: never describe them "
+               "as 'last N days'. Exact totals for each breakdown are in section_totals: never add up rows. Ranked "
+               "samples (low_stock, top_parts) are not totals.")
+
+
 def section_notes(stock_as_of: str, period_covers: str) -> dict:
-    """What each section's figures cover, so stock counts are never described with the sales period."""
-    notes = {s: f"Point-in-time count as of {stock_as_of}. Not tied to the sales period; never describe it as "
-                "'last N days'." for s in POINT_IN_TIME}
+    """What each section's figures cover (short; HOW_TO_READ says the rest once), so stock counts are never
+    described with the sales period."""
+    notes = {s: f"Point in time, as of {stock_as_of}." for s in POINT_IN_TIME}
     notes.update({s: "Whole history, by " + ("month." if s == "sales_by_month" else "quarter.") for s in WHOLE_HISTORY})
     notes["price_by_group"] = f"Current list prices as of {stock_as_of}."
-    notes["kpis"] = (f"Stock figures (units on hand, available, in transit, missing, backordered, SKUs, stock value, "
-                     f"missing value) are as of {stock_as_of}. Orders, revenue, units sold, shipping and FX cover "
+    notes["kpis"] = (f"Stock figures as of {stock_as_of}. Orders, revenue, units sold, shipping and FX cover "
                      f"{period_covers}.")
     for s in SECTIONS:
         notes.setdefault(s, f"Covers {period_covers}.")
+    notes["missing_by_warehouse_group"] += " Per-warehouse totals: missing_by_warehouse."
+    for s in ("low_stock", "top_parts"):
+        notes[s] += " Ranked sample."
     return notes
 
 
@@ -141,11 +153,52 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
     for r in low_stock:
         r["suggestion"] = recommend_for_part(emp, r["part_number"], r["warehouse_code"])["suggestion"]
 
+    # Exact totals for every breakdown, from the same rows before rounding, so nothing is ever added up by hand.
+    st = db.one(f"""SELECT SUM(s.qty_on_hand) units, SUM(s.qty_available) available, SUM(s.qty_in_transit) in_transit,
+                           SUM(s.qty_missing) missing, ROUND(SUM(s.qty_missing * i.unit_cost_usd)) missing_value_usd,
+                           SUM(s.needs_reorder) needs_reorder, ROUND(SUM(s.stock_value_usd)) stock_value_usd,
+                           SUM(CASE WHEN s.qty_missing > 0 THEN 1 ELSE 0 END) skus_missing
+                    FROM v_stock_position s JOIN inventory i USING (part_id, warehouse_code) WHERE 1=1 {si}""", *sia)
+
+    def pick(d, *keys, **renamed):
+        return {**{k: d[k] for k in keys}, **{new: d[old] for new, old in renamed.items()}}
+    period_orders = f"FROM {src} WHERE o.status <> 'Cancelled' AND o.ordered_at_utc >= ? {so}"
+    ship = None if category else db.one(f"""SELECT COUNT(*) orders, ROUND(AVG(carrier_cost_usd), 2) avg_carrier_cost_usd,
+                                               ROUND(AVG(shipping_usd), 2) avg_charged_usd, ROUND(SUM(carrier_cost_usd)) carrier_cost_usd,
+                                               ROUND(100.0 * SUM(carrier_cost_usd) / SUM(order_total_usd), 1) cost_pct_of_revenue
+                                        FROM orders o WHERE o.status <> 'Cancelled' AND o.ordered_at_utc >= ? {so}""", start, *soa)
+    section_totals = dict(
+        inventory_by_group=pick(st, "units", "available", "stock_value_usd"),
+        inventory_by_warehouse=pick(st, "units", "in_transit", "missing", "missing_value_usd", "needs_reorder", "stock_value_usd"),
+        stock_aging=pick(st, "units", "stock_value_usd"),
+        missing_by_warehouse=pick(st, "missing_value_usd", units_missing="missing", skus_missing="skus_missing"),
+        missing_by_group=pick(st, "missing_value_usd", units="missing"),
+        missing_by_warehouse_group=pick(st, "missing_value_usd", units="missing"),
+        sales_by_month=db.one(f"""SELECT COUNT(*) orders,
+                                         ROUND(SUM(CASE WHEN order_type = 'Domestic' THEN {rev} ELSE 0 END)) domestic_revenue_usd,
+                                         ROUND(SUM(CASE WHEN order_type = 'International' THEN {rev} ELSE 0 END)) international_revenue_usd,
+                                         {whole_order or 'ROUND(SUM(carrier_cost_usd))'} carrier_cost_usd,
+                                         {whole_order or 'ROUND(SUM(shipping_usd))'} shipping_usd
+                                  FROM {src} WHERE o.status <> 'Cancelled' {so}""", *srca, *soa),
+        sales_by_quarter=db.one(f"SELECT COUNT(*) orders, ROUND(SUM({rev})) revenue_usd FROM {src} WHERE o.status <> 'Cancelled' {so}",
+                                *srca, *soa),
+        revenue_by_region=db.one(f"SELECT COUNT(*) orders, ROUND(SUM({rev})) revenue_usd {period_orders}", *srca, start, *soa),
+        revenue_by_country=db.one(f"""SELECT COUNT(*) orders, ROUND(SUM({rev})) revenue_usd,
+                                             {whole_order or 'ROUND(SUM(fx_gain_loss_usd), 2)'} fx_gain_loss_usd
+                                      {period_orders} AND o.order_type = 'International'""", *srca, start, *soa),
+        sales_by_group=db.one(f"""SELECT SUM(ol.quantity) units, ROUND(SUM(ol.line_total_usd)) revenue_usd
+                                  FROM order_lines ol JOIN orders o USING (order_id) JOIN parts p USING (part_id)
+                                  WHERE ol.line_status IN ('Shipped','Delivered','Returned') AND o.ordered_at_utc >= ? {so}{pc}""",
+                              start, *soa, *pca),
+        shipping_by_carrier=ship or {},
+        shipping_by_service=pick(ship, "orders", "avg_carrier_cost_usd", "avg_charged_usd") if ship else {},
+    )
+
     return dict(
         period=period, warehouse=warehouse or "All in your view", category=category or "All categories",
         note=CATEGORY_NOTE if category else None, scope=emp.scope_label(), scope_note=note,
         as_of=end.strftime("%Y-%m-%d %H:%M UTC"), as_of_display=stock_as_of, stock_as_of=stock_as_of, period_covers=period_covers,
-        section_notes=section_notes(stock_as_of, period_covers),
+        how_to_read=HOW_TO_READ, section_notes=section_notes(stock_as_of, period_covers), section_totals=section_totals,
         kpis=kpis,
         inventory_by_group=db.rows(f"""SELECT s.category_group label, SUM(s.qty_on_hand) units, SUM(s.qty_available) available,
                                               ROUND(SUM(s.stock_value_usd)) stock_value_usd
@@ -162,6 +215,11 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
                                 FROM v_stock_position s WHERE qty_on_hand > 0 {si} GROUP BY 1
                                 ORDER BY MIN(days_since_last_activity)""", *sia),
         low_stock=low_stock,
+        missing_by_warehouse=db.rows(f"""SELECT s.warehouse_code label, SUM(s.qty_missing) units_missing,
+                                                ROUND(SUM(s.qty_missing * i.unit_cost_usd)) missing_value_usd,
+                                                COUNT(*) skus_missing
+                                         FROM v_stock_position s JOIN inventory i USING (part_id, warehouse_code)
+                                         WHERE s.qty_missing > 0 {si} GROUP BY 1 ORDER BY units_missing DESC, missing_value_usd DESC""", *sia),
         missing_by_group=db.rows(f"""SELECT s.category_group label, SUM(s.qty_missing) units,
                                             ROUND(SUM(s.qty_missing * i.unit_cost_usd)) missing_value_usd
                                      FROM v_stock_position s JOIN inventory i USING (part_id, warehouse_code)

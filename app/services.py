@@ -273,7 +273,9 @@ def search_orders(emp: Employee, q: str | None = None, status: str | None = None
     base = f"FROM orders o JOIN customers c USING (customer_id) WHERE {' AND '.join(where)} {sc}"
     res = db.rows(f"SELECT {ORDER_LIST_COLS} {base} ORDER BY o.ordered_at_utc DESC LIMIT ?", *args, *sa, int(limit))
     total = db.scalar(f"SELECT COUNT(*) {base}", *args, *sa)
-    out = {"count": len(res), "total": total, "results": res}
+    # totals over every match, not just the rows shown (USD only: local totals are in mixed currencies)
+    sums = db.one(f"SELECT COUNT(*) orders, ROUND(SUM(o.order_total_usd), 2) order_total_usd {base}", *args, *sa)
+    out = {"count": len(res), "total": total, "totals": sums, "results": res}
     if total > len(res):
         out["note"] = (f"Showing the latest {len(res)} of {total} matching orders. These rows are a sample: don't add up, "
                        "average or extrapolate them to describe all matches.")

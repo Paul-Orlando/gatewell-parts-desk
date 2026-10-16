@@ -213,14 +213,65 @@ def test_analytics_labels_stock_as_point_in_time(ids):
                                  {"period": "90", "sections": ["missing_by_warehouse_group", "inventory_by_warehouse", "top_parts"]})
     d = json.loads(text)
     notes = d["section_notes"]
-    assert set(notes) == {"missing_by_warehouse_group", "inventory_by_warehouse", "top_parts", "kpis"}
-    for s in ("missing_by_warehouse_group", "inventory_by_warehouse"):
-        assert notes[s].startswith("Point-in-time count as of ") and "90 days" not in notes[s].replace("'last N days'", "")
+    assert set(notes) == {"missing_by_warehouse_group", "missing_by_warehouse", "inventory_by_warehouse", "top_parts", "kpis"}
+    for s in ("missing_by_warehouse_group", "missing_by_warehouse", "inventory_by_warehouse"):
+        assert notes[s].startswith("Point in time, as of ") and "90 days" not in notes[s]
         assert d["stock_as_of"] in notes[s]
+    assert "never describe them as 'last N days'" in d["how_to_read"]
     assert "last 90 days" in notes["top_parts"] and "last 90 days" in d["period_covers"]
     stock, sales = notes["kpis"].split("Orders, revenue")
     assert "as of" in stock and "90 days" not in stock and "last 90 days" in sales
     assert "Stock counts (on hand, available, in transit, missing, low stock) are point in time" in         assistant.system_prompt(load_employee(ids["director"]))
+
+
+def _missing_by_warehouse_sql(codes=None):
+    from app import db
+    where = f"AND i.warehouse_code IN ({','.join('?' * len(codes))})" if codes else ""
+    return {r["warehouse_code"]: (r["units"], r["value"]) for r in db.rows(
+        f"""SELECT i.warehouse_code, SUM(i.qty_missing) units, ROUND(SUM(i.qty_missing * i.unit_cost_usd)) value
+            FROM inventory i WHERE i.qty_missing > 0 {where} GROUP BY 1""", *(codes or []))}
+
+
+def test_warehouse_missing_totals_come_from_the_tool_and_match_the_database(ids):
+    """Retest 2026-10-16: the model added up category rows (NWK $4,921, ATL 13 units / $868). The tool now gives
+    exact per-warehouse totals next to the breakdown, so there's nothing to add."""
+    d = json.loads(assistant.run_tool(load_employee(ids["director"]), "analytics_summary",
+                                      {"sections": ["missing_by_warehouse_group"]})[0])
+    got = {r["label"]: (r["units_missing"], r["missing_value_usd"]) for r in d["missing_by_warehouse"]}
+    assert got == _missing_by_warehouse_sql()
+    assert got["NWK"] == (140, 4951) and got["ATL"] == (12, 866)
+    assert d["missing_by_warehouse"][0]["label"] == "NWK"                        # largest first
+    total = d["section_totals"]["missing_by_warehouse_group"]
+    assert (total["units"], total["missing_value_usd"]) == (d["kpis"]["units_missing"], d["kpis"]["missing_value_usd"])
+    assert d["section_totals"]["missing_by_warehouse"]["units_missing"] == sum(u for u, _ in got.values())
+
+
+def test_section_totals_stay_in_scope_and_match_the_database(ids):
+    from app import db
+    reg = load_employee(ids["regional"])
+    d = json.loads(assistant.run_tool(reg, "analytics_summary", {"period": "90", "sections": [
+        "missing_by_warehouse", "sales_by_group", "revenue_by_region"]})[0])
+    mine = sorted(reg.warehouses())
+    assert {r["label"] for r in d["missing_by_warehouse"]} <= set(mine)
+    assert {r["label"]: (r["units_missing"], r["missing_value_usd"]) for r in d["missing_by_warehouse"]} == \
+        _missing_by_warehouse_sql(mine)
+    start = (db.as_of() - __import__("datetime").timedelta(days=90)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    ph = ",".join("?" * len(mine))
+    sales = db.one(f"""SELECT SUM(ol.quantity) units, ROUND(SUM(ol.line_total_usd)) revenue_usd
+                       FROM order_lines ol JOIN orders o USING (order_id)
+                       WHERE ol.line_status IN ('Shipped','Delivered','Returned') AND o.ordered_at_utc >= ?
+                       AND o.fulfillment_warehouse IN ({ph})""", start, *mine)
+    assert d["section_totals"]["sales_by_group"] == sales
+    region = db.one(f"""SELECT COUNT(*) orders, ROUND(SUM(order_total_usd)) revenue_usd FROM orders o
+                        WHERE status <> 'Cancelled' AND ordered_at_utc >= ? AND fulfillment_warehouse IN ({ph})""", start, *mine)
+    assert d["section_totals"]["revenue_by_region"] == region
+
+
+def test_prompt_forbids_model_arithmetic(ids):
+    for role in ("cs", "cs_sup", "warehouse", "director"):
+        text = assistant.system_prompt(load_employee(ids[role]))
+        assert "Never add, subtract or average figures yourself. Report totals and figures exactly as the tools return" in text
+        assert "If\n  you need a total the tool didn't return, call the section that has it" in text
 
 
 def test_as_of_times_are_shown_in_central(ids, client):
