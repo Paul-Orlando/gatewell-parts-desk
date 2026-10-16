@@ -86,6 +86,14 @@ This calls the real model, so keep it out of the normal pytest run.
   - `tests/eval/results/<date>_<model>.md`: pass rate overall and by group; consistency (questions that passed all 3 runs); refusal accuracy; average and 95th-percentile time; average cost per question; and a list of failures with the answer given
 - Runs on Windows as `.venv\Scripts\python tests\eval\run_eval.py`.
 
+**How to run (built 2026-10-16).**
+- The key comes from `OPENROUTER_API_KEY` in the terminal's environment; the runner never reads `.env`. In PowerShell, from `gatewell_app`, load it the way `run.bat` does:
+  `Get-Content .env | Where-Object { $_ -match '^\s*OPENROUTER_API_KEY\s*=' } | ForEach-Object { $env:OPENROUTER_API_KEY = ($_ -split '=', 2)[1].Trim() }`
+- Smoke test (3 questions, 1 run, about $0.01): `.venv\Scripts\python tests\eval\run_eval.py --limit 3 --runs 1`
+- Full set (50 × 3 = 150 runs, about $0.35–0.45, 10–15 minutes): `.venv\Scripts\python tests\eval\run_eval.py`
+- Options: `--runs`, `--limit`, `--only ID…`, `--group`, `--model`, `--price-in`, `--price-out`. The demo limit is off inside the runner. Runs with more than 3 tool calls or 8 seconds are flagged.
+- `tests/test_eval_set.py` (normal pytest, no model) re-runs every fact's source query or tool call, so the set can't drift from the data.
+
 ### B3. Comparison
 
 After running Flash-Lite, run one other model, chosen by me, and write `tests/eval/results/COMPARISON.md` with a side-by-side table.
