@@ -8,7 +8,7 @@ from app.auth import load_employee
 
 
 def test_backordered_part_covered_by_inbound_gets_no_reorder(client, ids):
-    r = client.get("/api/parts/68253600AW/suggestions", headers=headers(ids["wh_manager"])).json()
+    r = client.get("/api/parts/IH-100009/suggestions", headers=headers(ids["wh_manager"])).json()
     assert r["for_warehouse"] == "ATL" and r["qty_backordered"] == 11 and r["qty_in_transit"] == 120
     assert r["reorder"]["covered_by_inbound"] is True and r["reorder"]["suggested_qty"] == 0
     assert r["reorder"]["quantity"] == 120 and r["reorder"]["next_eta_local"].startswith("2026-10-14")
@@ -30,7 +30,7 @@ def test_transfers_never_take_a_source_below_its_reorder_point(ids):
 
 
 def test_suggestions_only_for_warehouses_in_scope(client, ids):
-    r = client.get("/api/parts/68253600AW/suggestions", params={"warehouse": "NWK"}, headers=headers(ids["wh_manager"]))
+    r = client.get("/api/parts/IH-100009/suggestions", params={"warehouse": "NWK"}, headers=headers(ids["wh_manager"]))
     assert r.status_code == 400 and "outside your view" in r.json()["detail"]
     text, is_err = assistant.run_tool(load_employee(ids["wh_manager"]), "recommend_actions", {"warehouse": "NWK"})
     assert is_err and "outside your view" in text
@@ -40,13 +40,13 @@ def test_suggestions_only_for_warehouses_in_scope(client, ids):
 
 
 def test_shipping_cost_is_hidden_from_roles_without_costs(client, ids):
-    url = "/api/parts/08294-PAK-H95/suggestions"
+    url = "/api/parts/FM-100194/suggestions"
     mgr = client.get(url, params={"warehouse": "NWK"}, headers=headers(ids["director"])).json()
     assert mgr["transfer_options"] and all("estimated_cost_usd" in t for t in mgr["transfer_options"])
     assert "about $" in mgr["summary"]
     for role in ("cs", "cs_sup", "warehouse"):
         params = {"warehouse": "NWK"} if role != "warehouse" else None
-        r = client.get(url if role != "warehouse" else "/api/parts/68253600AW/suggestions", params=params,
+        r = client.get(url if role != "warehouse" else "/api/parts/IH-100009/suggestions", params=params,
                        headers=headers(ids[role])).json()
         assert all("estimated_cost_usd" not in t for t in r["transfer_options"]) and "$" not in r["summary"], role
         if role != "warehouse":
@@ -54,7 +54,7 @@ def test_shipping_cost_is_hidden_from_roles_without_costs(client, ids):
 
 
 def test_warehouse_roles_get_no_reorder(client, ids):
-    r = client.get("/api/parts/68253600AW/suggestions", headers=headers(ids["warehouse"])).json()
+    r = client.get("/api/parts/IH-100009/suggestions", headers=headers(ids["warehouse"])).json()
     assert r["for_warehouse"] == "ATL" and "reorder" not in r and r["substitutes"]
     assert "reorder" not in r["suggestion"].lower() or "Covered" in r["suggestion"]
 
@@ -64,7 +64,7 @@ def test_suggestions_change_nothing(client, ids):
     before = {t: db.scalar(f'SELECT COUNT(*) FROM "{t}"') for t in tables}
     od = load_employee(ids["director"])
     recommend.recommend_for_warehouse(od)
-    for pn, wh in (("68253600AW", "ATL"), ("08294-PAK-H95", "NWK"), ("50712-XAV-D58", "NWK")):
+    for pn, wh in (("IH-100009", "ATL"), ("FM-100194", "NWK"), ("FM-100192", "NWK")):
         client.get(f"/api/parts/{pn}/suggestions", params={"warehouse": wh}, headers=headers(ids["director"]))
         assistant.run_tool(od, "recommend_actions", {"part_number": pn, "warehouse": wh})
     client.get("/api/analytics", headers=headers(ids["director"]))

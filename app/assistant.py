@@ -63,7 +63,7 @@ TOOLS = [
                      "cover every match; 'results' may be fewer (see 'count').",
          schema={"type": "object", "properties": {
              "q": {"type": "string"}, "year": {"type": "integer"}, "make": {"type": "string"}, "model": {"type": "string"},
-             "engine": {"type": "string", "description": "Part of the engine name, e.g. 3.5 or EcoBoost"},
+             "engine": {"type": "string", "description": "Part of the engine name, e.g. 3.5 or Twin-Turbo"},
              "category": {"type": "string", "description": "Category or category group, e.g. Brake Pads"},
              "warehouse": {"type": "string", "enum": WAREHOUSE_CODES, "description": "Warehouse code (see the list in your instructions)"},
              "stock_filter": {"type": "string", "enum": services.STOCK_FILTERS},
@@ -109,7 +109,7 @@ TOOLS = [
                  "required": ["part_number"]},
          run=lambda e, a: AT.get_part_price(**a)),
     dict(name="quote_shipping", roles="all",
-         description="Shipping cost and delivery date from every UPS, FedEx, USPS and DHL service for a set of parts to a "
+         description="Shipping cost and delivery date from every Parcelora, Velocair, Postara and Globexa Express service for a set of parts to a "
                      "destination (U.S. state, or country code), cheapest first, plus services that can't carry it and why.",
          schema={"type": "object", "properties": {"items": _items_schema(), "ship_to_country": {"type": "string"},
                                                   "ship_to_state": {"type": "string"}, "residential": {"type": "boolean"},

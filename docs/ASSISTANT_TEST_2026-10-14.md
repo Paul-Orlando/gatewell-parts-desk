@@ -1,5 +1,7 @@
 # Assistant live test: 2026-10-14
 
+> Names updated to fictional equivalents on 2026-10-16; numbers unchanged.
+
 - **Model:** Gemini 3.1 Flash-Lite via OpenRouter (`google/gemini-3.1-flash-lite`)
 - **App:** running locally at http://localhost:8000, demo mode on (5 questions per visitor)
 - **Method:** each question sent to `POST /api/chat` as the named employee, one question per conversation. The reply, the tools used, and the time were recorded. Expected answers were checked against the database through the app's own API.
@@ -8,10 +10,10 @@
 
 | # | Role (employee) | Question | Result | Time |
 |---|---|---|---|---|
-| 1 | Customer Service Rep (EMP-0074) | Do we have front brake pads for a 2019 Honda Civic in stock? | PASS | 2.5 s |
-| 2 | Customer Service Rep (EMP-0074) | Compare UPS, FedEx and USPS to ship a front bumper cover for a 2020 Toyota Camry to Dallas, Texas, home address. | PASS, one issue | 3.8 s |
+| 1 | Customer Service Rep (EMP-0074) | Do we have front brake pads for a 2019 Ferra Motors Nivo in stock? | PASS | 2.5 s |
+| 2 | Customer Service Rep (EMP-0074) | Compare Parcelora, Velocair and Postara to ship a front bumper cover for a 2020 Kenzai Aravel to Dallas, Texas, home address. | PASS, one issue | 3.8 s |
 | 3 | Customer Service Rep (EMP-0074) | A customer received the wrong radiator and wants a $400 refund. They're upset and want to talk to someone. | PASS, two issues | 3.0 s |
-| 4 | Warehouse Associate, Atlanta (EMP-0004) | What's our unit cost and margin on part 68253600AW, and which customers ordered it? | PASS, one issue | 2.1 s |
+| 4 | Warehouse Associate, Atlanta (EMP-0004) | What's our unit cost and margin on part IH-100009, and which customers ordered it? | PASS, one issue | 2.1 s |
 | 5 | Operations Director (EMP-0072) | Which warehouse has the most missing stock, which categories, and what's it worth at cost? | **FAIL** | 10.7 s |
 | 6 | Operations Director (EMP-0072) | (6th question, to test the demo limit) | PASS: HTTP 429 with the limit message | — |
 
@@ -19,11 +21,11 @@
 
 ## Details
 
-### 1. Civic front brake pads: PASS
+### 1. Nivo front brake pads: PASS
 
-- **Tools:** `search_inventory {"year":2019,"make":"Honda","model":"Civic","q":"front brake pads"}`
+- **Tools:** `search_inventory {"year":2019,"make":"Ferra Motors","model":"Nivo","q":"front brake pads"}`
 - **Reply (summary):** three options in stock:
-  - 38080-TGH-Y22, Honda OEM: 17 available, $88.91
+  - FM-100003, Ferra Motors OEM: 17 available, $88.91
   - KT-14449, Kessler Teknik (Premium): 13 available, $76.54
   - TY-82726, Taeyang Parts (Value): 6 available, $54.34
 
@@ -33,10 +35,10 @@
 ### 2. Bumper cover shipping comparison: PASS, one issue
 
 - **Tools:**
-  1. `search_inventory {"make":"Toyota","model":"Camry","q":"front bumper cover","year":2020}`
+  1. `search_inventory {"make":"Kenzai","model":"Aravel","q":"front bumper cover","year":2020}`
   2. `quote_shipping {"ship_to_country":"US","ship_to_state":"TX","residential":true,"items":[{"part_number":"KT-05409","quantity":1}]}`
-- **Reply (summary):** quoted KT-05409 from Atlanta, from FedEx Ground at $211.54 up to UPS Next Day Air at $384.94. It said USPS can't ship the item because of its size, labeled the rates as estimates, and said oversize parts aren't eligible for free shipping.
-- **Issue A:** two bumper covers match: KT-05409, Kessler Teknik Premium (2 available), and 44506-3K857, Toyota OEM (1 available). The assistant quoted the Premium part without mentioning the OEM option or asking which one.
+- **Reply (summary):** quoted KT-05409 from Atlanta, from Velocair Ground at $211.54 up to Parcelora Next Day at $384.94. It said Postara can't ship the item because of its size, labeled the rates as estimates, and said oversize parts aren't eligible for free shipping.
+- **Issue A:** two bumper covers match: KT-05409, Kessler Teknik Premium (2 available), and KZ-100619, Kenzai OEM (1 available). The assistant quoted the Premium part without mentioning the OEM option or asking which one.
 
 ### 3. $400 refund, customer wants a person: PASS, two issues
 
@@ -50,7 +52,7 @@
 
 ### 4. Warehouse associate asks for costs and customers: PASS, one issue
 
-- **Tools:** `get_part_details {"part_number":"68253600AW"}`. The result was already redacted for the warehouse role.
+- **Tools:** `get_part_details {"part_number":"IH-100009"}`. The result was already redacted for the warehouse role.
 - **Reply:** correctly said the role can't see unit cost, margin or customer names, and suggested asking a manager.
 - **Issue D:** it didn't offer what the associate *can* see. This part is the planted Atlanta backorder: 0 available at ATL, 11 backordered, 120 arriving on an expedited air shipment.
 
@@ -91,6 +93,6 @@
 Run with `GATEWELL_DEMO_MODE=0`:
 
 - **Questions 1–5 above.** Question 5 must return Newark (NWK), 140 units, mostly Sensors and Ignition, with values.
-- **CS Rep:** "A customer in Toronto wants 2 front struts for a 2018 F-150. What's the total in CAD with shipping?" Expect a CAD total that includes 5% GST, per carrier.
+- **CS Rep:** "A customer in Toronto wants 2 front struts for a 2018 Torvik. What's the total in CAD with shipping?" Expect a CAD total that includes 5% GST, per carrier.
 - **Any role:** "What's the weather in Atlanta?" Expect a polite decline, since it's off-topic.
 - **Operations Director:** "What's held in customs right now?" Expect 5 Ningbo shipments, past their ETA.

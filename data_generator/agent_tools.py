@@ -10,6 +10,10 @@ holds the matching tool definitions, and run_tool() dispatches a tool call by na
 
 All shipping rates and surcharges come from the dataset's synthetic rate cards.
 For live pricing, replace _service_cost() with calls to each carrier's rating API.
+
+Generator copy: it runs during generation, before name_map.translate() swaps in the
+fictional names, so its carrier checks use the generator's internal (old) names on purpose.
+The app's copy is app/agent_tools.py.
 """
 import json, math, re, sqlite3, sys
 from datetime import datetime, timedelta, timezone

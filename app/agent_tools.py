@@ -154,17 +154,17 @@ def _service_cost(c, svc, rate, pkgs, residential, scope, sur=None):
         if svc["max_length_plus_girth_in"] and lg > svc["max_length_plus_girth_in"]:
             return None, f"Package too large ({lg:.0f} in length + girth; limit {svc['max_length_plus_girth_in']})"
         if pk["hazmat"] and not svc["hazmat_lead_acid_allowed"]:
-            return None, "Lead-acid batteries can only ship by UPS or FedEx ground"
+            return None, "Lead-acid batteries can only ship by Parcelora or Velocair ground"
         vol = L * W * H
-        dimw = vol / svc["dim_divisor"] if (svc["carrier"] != "USPS" or vol > 1728) else 0
+        dimw = vol / svc["dim_divisor"] if (svc["carrier"] != "Postara" or vol > 1728) else 0
         billable = max(math.ceil(pk["weight_lb"]), math.ceil(dimw), 1)
         transport = (rate["first_lb_usd"] + rate["additional_lb_usd"] * (billable - 1)) * (1 - NEGOTIATED_DISCOUNT)
         extras = []
-        if svc["carrier"] == "USPS":
+        if svc["carrier"] == "Postara":
             if L > 30: extras.append(("NONSTD_30", sur["NONSTD_30"]["amount_usd"]))
             elif L > 22: extras.append(("NONSTD_22", sur["NONSTD_22"]["amount_usd"]))
         else:
-            large = (lg > 130 or L > 96) if svc["carrier"] != "DHL" else (L > 47 and lg > 130)
+            large = (lg > 130 or L > 96) if svc["carrier"] != "Globexa Express" else (L > 47 and lg > 130)
             handling = L > 48 or W > 30 or pk["weight_lb"] > 50
             if large: extras.append(("LARGE_PKG", sur["LARGE_PKG"]["amount_usd"]))
             elif handling: extras.append(("ADD_HANDLING", sur["ADD_HANDLING"]["amount_usd"]))
@@ -239,8 +239,8 @@ def quote_shipping(items, ship_to_country="US", ship_to_state=None, residential=
                     "Domestic" if domestic else "International")
     options, unavailable = [], []
     for s in services:
-        if s["service_code"] == "UPS_STD_CAMX" and ship_to_country not in ("CA", "MX"): continue
-        if s["service_code"] == "FDX_IG" and ship_to_country != "CA": continue
+        if s["service_code"] == "PCL_STD_CAMX" and ship_to_country not in ("CA", "MX"): continue
+        if s["service_code"] == "VLC_IG" and ship_to_country != "CA": continue
         rate = _one(c, "SELECT * FROM shipping_rates WHERE service_code=? AND zone=?", s["service_code"], zone)
         if not rate: continue
         cost, detail = _service_cost(c, s, rate, pkgs, residential, s["scope"])
@@ -466,7 +466,7 @@ TOOL_SCHEMAS = [
     {"name": "get_part_price", "description": "Price of a part for a customer (list price, their price, core charge, local currency at today's rate) and where it's in stock.",
      "input_schema": {"type": "object", "properties": {"part_number": {"type": "string"}, "customer_id": {"type": "string"},
                       "quantity": {"type": "integer"}, "currency": {"type": "string", "description": "ISO code, e.g. CAD"}}, "required": ["part_number"]}},
-    {"name": "quote_shipping", "description": "Shipping cost and delivery date for every UPS, FedEx, USPS and DHL service that can carry the order, cheapest first, plus services that can't and why.",
+    {"name": "quote_shipping", "description": "Shipping cost and delivery date for every Parcelora, Velocair, Postara and Globexa Express service that can carry the order, cheapest first, plus services that can't and why.",
      "input_schema": {"type": "object", "properties": {"items": _ITEMS, "ship_to_country": {"type": "string", "description": "ISO country code, default US"},
                       "ship_to_state": {"type": "string", "description": "U.S. state code, required for U.S. addresses"},
                       "residential": {"type": "boolean"}, "customer_id": {"type": "string"}}, "required": ["items"]}},
@@ -510,7 +510,7 @@ def _sample_part(name, make, model, year, brand_type="OEM"):
     return r[0] if r else None
 
 if __name__ == "__main__" and len(sys.argv) > 1 and sys.argv[1] == "demo":
-    pads = _sample_part("Brake Pads - Front", "Honda", "Civic", 2019)
+    pads = _sample_part("Brake Pads - Front", "Ferra Motors", "Nivo", 2019)
     _show("Part price for a retail customer", get_part_price(pads))
     q = quote_shipping([{"part_number": pads, "quantity": 1}], "US", "GA")
     _show("Shipping options: brake pads to Georgia", {k: q[k] for k in ("ship_from", "zone", "notes")} |

@@ -40,4 +40,5 @@ Internal employee app for Gatewell Auto Parts Co. FastAPI backend (`app/`), plai
 - **Type:** Barlow Semi Condensed for headings, part numbers, bins and big figures; Public Sans for everything else. Both are bundled in `static/vendor/fonts`. No other fonts.
 - **Status:** always an icon plus a word (In stock, Low, Out, Inbound). Never color alone.
 - **Layout:** dense, scannable tables for data work; the detail drawer for one record; filters in one row above results. Keep it quiet: no gradients, decorative shadows or animations beyond opening and closing panels.
+- **Names:** all vehicle makes, models, brands and carriers are fictional (see data_generator/name_map.py). Never add real company, vehicle, engine or carrier names, logos or styling.
 - **Quality floor:** works at phone width, keyboard focus visible, dark mode via the existing tokens, text contrast at least 4.5:1. Check changes with a screenshot before calling them done.

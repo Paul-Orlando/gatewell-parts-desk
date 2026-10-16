@@ -8,8 +8,8 @@ You own it. Use, change and share it without restriction.
 - **History:** 2025-01-01 → 2026-10-11 (about 21 months). The generator simulates from October 2024, then keeps closed orders and delivered shipments from January 2025 on, which holds the file to about 43 MB. Open invoices and everything in transit are always kept.
 - **Files:** `car_parts_inventory.db` (SQLite, all tables plus views), `car_parts_dataset_csv.zip` (one CSV per table), `generate_dataset.py` (regenerates everything; the same seed gives identical data on every run), `agent_tools.py` (the agent's tools: prices, shipping quotes, FAQ, live-person handoff)
 
-> **Important.** Vehicle year/make/model/engine combinations approximate real common U.S. vehicles, and those names are trademarks of their owners.
-> **Everything else is invented:** the company, part numbers, prices, aftermarket brands, suppliers, carriers, dealerships, customers, employees and exchange rates.
+> **Important.** Vehicles and carriers are fictional equivalents of common U.S. models and major parcel carriers. Year, body type and engine combinations approximate common U.S. vehicles, but every make, model, brand, carrier and part number is invented (see `data_generator/name_map.py`).
+> Gatewell Auto Parts and all companies, vehicles, brands, carriers, people, orders, prices and rates in this demo are fictional. Any resemblance to real products or companies is coincidental. Place names and currencies are real.
 > Part numbers follow realistic manufacturer formats and could coincidentally match a real number. **Never use them for real ordering.**
 
 ## The company (fictional)
@@ -109,22 +109,22 @@ The bot can quote **every major carrier**, cheapest first, with an estimated del
 
 | Carrier | Domestic | International |
 |---|---|---|
-| **UPS** | Ground, 2nd Day Air, Next Day Air | Standard (Canada & Mexico), Worldwide Expedited, Worldwide Saver |
-| **FedEx** | Ground / Home Delivery, 2Day, Standard Overnight | International Ground (Canada), International Economy, International Priority |
-| **USPS** | Ground Advantage, Priority Mail, Priority Mail Express | Priority Mail International |
-| **DHL** | (international only from the U.S.) | Express Worldwide |
+| **Parcelora** | Ground, 2-Day, Next Day | Standard (Canada & Mexico), Worldwide Expedited, Worldwide Express |
+| **Velocair** | Ground, 2Day, Overnight | International Ground (Canada), International Economy, International Express |
+| **Postara** | Ground Saver, Priority, Priority Overnight | Priority International |
+| **Globexa Express** | (international only from the U.S.) | Express Worldwide |
 
 **How a quote is built** (`quote_shipping`):
 
 1. **Pick the warehouse.** Use the one that serves the destination. If it's out of stock, use the warehouse with the most stock, and say so.
 2. **Pack the order.** Small parts share one box; each larger part ships in its own box.
-3. **Work out the billable weight.** Billable weight = the greater of actual weight and **dimensional weight** (L×W×H ÷ 139 for UPS/FedEx/DHL, ÷ 166 for USPS over 1 cubic foot).
+3. **Work out the billable weight.** Billable weight = the greater of actual weight and **dimensional weight** (L×W×H ÷ 139 for Parcelora/Velocair/Globexa Express, ÷ 166 for Postara over 1 cubic foot).
 4. **Price each service.** Price = zone rate (first pound + each additional pound) + surcharges + fuel surcharge (a percentage).
-   - Surcharges are residential delivery, additional handling (over 48 in or 50 lb), large package (length + girth over 130 in), hazmat ground fee, and USPS nonstandard length.
+   - Surcharges are residential delivery, additional handling (over 48 in or 50 lb), large package (length + girth over 130 in), hazmat ground fee, and Postara nonstandard length.
 5. **Rule out services that can't carry it**, and say why. For example:
-   - Lead-acid batteries go by **UPS/FedEx ground only**.
-   - USPS can't take a bumper cover (too large).
-   - USPS has a 70 lb limit.
+   - Lead-acid batteries go by **Parcelora/Velocair ground only**.
+   - Postara can't take a bumper cover (too large).
+   - Postara has a 70 lb limit.
 6. **Estimate the delivery date.** Orders before **3:00 PM warehouse time** on a business day ship that day; transit days are added on business days.
 7. **Convert to the customer's currency** at today's rate.
 8. **Apply free ground shipping** for dealers and for U.S. individual orders of $99+, except oversize parts.
@@ -137,7 +137,7 @@ The bot can quote **every major carrier**, cheapest first, with an estimated del
 
 The result is a total for each carrier option, in the customer's currency.
 
-> **All rates, surcharges and transit times are synthetic estimates.** For live pricing, connect each carrier's rating API (UPS, FedEx, USPS and DHL all offer one with a business account) and replace `_service_cost()` in `agent_tools.py`.
+> **All rates, surcharges and transit times are synthetic estimates.** For live pricing, connect each parcel carrier's rating API (major carriers offer one with a business account) and replace `_service_cost()` in `agent_tools.py`.
 
 ### What shipping actually costs us
 
@@ -175,9 +175,9 @@ Run `python3 agent_tools.py demo` to see example output.
 | `company` | 1 | Name, HQ address, phone numbers, email, website |
 | `support_departments` | 5 | Phone, email, hours (Central), languages, what each one handles |
 | `faq` | 25 | FAQ questions and answers, each with its link on the FAQ page and the team that owns it |
-| `shipping_services` | 20 | UPS, FedEx, USPS and DHL services, plus our own dealer delivery routes and freight forwarders: limits, hazmat rules, transit times |
+| `shipping_services` | 20 | Parcelora, Velocair, Postara and Globexa Express services, plus our own dealer delivery routes and freight forwarders: limits, hazmat rules, transit times |
 | `shipping_rates` | 95 | Price per zone: first pound and each additional pound (synthetic estimates) |
-| `shipping_surcharges` | 22 | Fuel, residential, additional handling, large package, hazmat, USPS nonstandard length |
+| `shipping_surcharges` | 22 | Fuel, residential, additional handling, large package, hazmat, Postara nonstandard length |
 | `shipping_zones_domestic` | 561 | Shipping zone (2–8) from every warehouse to every state |
 | `support_cases` | 1,042 | Contacts with live people, including AI chat handoffs |
 | `vehicles` | 1,061 | Year / make / model / engine for 62 common U.S. models, 2010–2026, 14 makes |
@@ -286,7 +286,7 @@ Seasonal demand follows the customer's own climate. Southern-hemisphere countrie
 1. **Shrinkage at Newark (NWK):** small, high-value parts (O2 sensors, ignition coils, spark plugs, ABS sensors) keep coming up short in cycle counts. NWK has far more missing units than any other warehouse.
 2. **Customs hold:** 5 inbound shipments from Ningbo, China are held by U.S. Customs at Long Beach, Houston and Seattle-Tacoma, past their ETAs.
 3. **Winter battery prep:** battery transfers are in transit to cold-climate warehouses (Chicago, Columbus, Newark, Denver, Anchorage), whose battery stock is running low.
-4. **Backorders at Atlanta:** a front brake pad for the 2019–2024 Ram 2500 (part 68253600AW) is out of stock at ATL, with backorders, open "Backorder ETA" support cases (several queued for Monday because it's Sunday at HQ), and an expedited air shipment due Oct 14.
+4. **Backorders at Atlanta:** a front brake pad for the 2019–2024 Ironhorn 2500 (part IH-100009) is out of stock at ATL, with backorders, open "Backorder ETA" support cases (several queued for Monday because it's Sunday at HQ), and an expedited air shipment due Oct 14.
 5. **Peso slide:** the Mexican peso weakened about 9% against the dollar in the last 30 days (19.57 → 21.31 per USD). That hurts margins on peso invoices, and on open Mexican receivables.
 6. **International customs holds:** a few international customer orders are held for missing documents, with Export Desk cases open.
 7. **Overdue dealer invoices:** some with Billing follow-up cases in progress.
@@ -301,7 +301,7 @@ Seasonal demand follows the customer's own climate. Southern-hemisphere countrie
 ## Example questions the agent should be able to answer
 
 **Inventory**
-- How many front brake pads for a 2019 Honda Civic do we have available, and where?
+- How many front brake pads for a 2019 Ferra Motors Nivo do we have available, and where?
 - What's on hand, in transit, sold last month and missing for the Brakes group, by region?
 - Which warehouse has the most missing stock, and in which categories?
 - What's the aftermarket equivalent of OEM part X, and do we have it?
@@ -313,7 +313,7 @@ Seasonal demand follows the customer's own climate. Southern-hemisphere countrie
 - What's held in customs right now, and when was it supposed to arrive (local time)?
 
 **Prices and shipping**
-- How much is a front strut for a 2020 F-150, and what does shipping cost with UPS, FedEx and USPS to Phoenix?
+- How much is a front strut for a 2020 Torvik, and what does shipping cost with Parcelora, Velocair and Postara to Phoenix?
 - What's the cheapest way to get a bumper cover to Dallas, and when would it arrive?
 - Can I get a battery shipped overnight? (No: ground only, and the bot explains why.)
 - Total in Canadian dollars for two struts to Toronto, including GST?

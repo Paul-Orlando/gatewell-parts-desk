@@ -15,15 +15,15 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: fitment
-  question: Do we have spark plugs for a 2015 Ford F-150?
+  question: Do we have spark plugs for a 2015 Halvard Torvik?
   expect:
     include:
     - - engine
     exclude:
     - BW-80690
-    - FF8Z-5955-Y
+    - HL-100182
     - HB-66990
-    - DB7Z-9495-M
+    - HL-100184
     tools_any:
     - search_inventory
     asks_followup: true
@@ -32,16 +32,16 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: fitment
-  question: Spark plugs for a 2015 Ford F-150 with the 3.5L EcoBoost - what do we have?
+  question: Spark plugs for a 2015 Halvard Torvik with the 3.5L Twin-Turbo - what do we have?
   expect:
     include:
     - - HB-94558
-    - - XW5Z-5643-V
+    - - HL-100183
     exclude:
     - BW-80690
-    - FF8Z-5955-Y
+    - HL-100182
     - HB-66990
-    - DB7Z-9495-M
+    - HL-100184
     tools_any:
     - search_inventory
     - get_part_details
@@ -50,15 +50,15 @@
   role: Customer Service Rep
   category: fitment
   turns:
-  - Spark plugs for a 2015 F-150, please.
+  - Spark plugs for a 2015 Torvik, please.
   - It's the 5.0 V8.
   expect:
     include:
     - - BW-80690
-    - - FF8Z-5955-Y
+    - - HL-100182
     exclude:
     - HB-94558
-    - XW5Z-5643-V
+    - HL-100183
     tools_any:
     - search_inventory
   notes: 'Two turns: the follow-up answer should narrow to the 5.0L V8 sets only. Graded on the final reply.'
@@ -66,10 +66,10 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: stock
-  question: Do we have rear brake pads for a 2015 Kia Sorento in stock?
+  question: Do we have rear brake pads for a 2015 Hanvel Morvale in stock?
   expect:
     include:
-    - - 02938-T5C77
+    - - DY-100025
     - - HB-09404
     tools_any:
     - search_inventory
@@ -77,7 +77,7 @@
   employee: EMP-0004
   role: Warehouse Associate
   category: stock
-  question: How many KV8Z-9402-Y batteries do we have here, and which bin are they in?
+  question: How many HL-100214 batteries do we have here, and which bin are they in?
   expect:
     include:
     - - L-08-03
@@ -88,10 +88,10 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: stock
-  question: A customer has part number 00093-N0V80. Can we sell it to them?
+  question: A customer has part number DY-100550. Can we sell it to them?
   expect:
     include:
-    - - 20031-M0X44
+    - - DY-100549
     tools_any:
     - get_part_details
     - get_part_price
@@ -100,7 +100,7 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: stock
-  question: Is there a cheaper equivalent to the battery KV8Z-9402-Y?
+  question: Is there a cheaper equivalent to the battery HL-100214?
   expect:
     include:
     - - BW-39719D
@@ -112,7 +112,7 @@
   employee: EMP-0072
   role: Operations Director
   category: stock
-  question: Part 17102-0G289 looks out of stock. When do we get more, and where?
+  question: Part KZ-100190 looks out of stock. When do we get more, and where?
   expect:
     include:
     - - ORD
@@ -128,10 +128,10 @@
   employee: EMP-0001
   role: Warehouse Manager
   category: stock
-  question: Which Ford OEM brake pads need reordering at Atlanta?
+  question: Which Halvard OEM brake pads need reordering at Atlanta?
   expect:
     include:
-    - - BN9Z-6149-E
+    - - HL-100008
     tools_any:
     - search_inventory
   notes: 4 brake pad parts at or below reorder point at ATL.
@@ -159,7 +159,7 @@
   expect:
     include:
     - - shipped
-    - - 1Z8RSDD5LLLGNFWE53
+    - - PC8RSDD5LLLGNFWE53
     tools_any:
     - get_order
     - search_orders
@@ -252,22 +252,22 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: shipping
-  question: Compare shipping options for the battery KV8Z-9402-Y to Florida, including USPS.
+  question: Compare shipping options for the battery HL-100214 to Florida, including Postara.
   expect:
     include:
     - - '61.16'
       - free
     - - '62.62'
-    - - USPS
+    - - Postara
     - - ground
     tools_any:
     - quote_shipping
-  notes: 'Lead-acid battery: UPS/FedEx ground only. USPS and air can''t carry it. FedEx Ground free to the customer.'
+  notes: 'Lead-acid battery: Parcelora/Velocair ground only. Postara and air can''t carry it. Velocair Ground free to the customer.'
 - id: shp-02
   employee: EMP-0074
   role: Customer Service Rep
   category: shipping
-  question: Can we ship the battery KV8Z-9402-Y to a customer in London?
+  question: Can we ship the battery HL-100214 to a customer in London?
   expect:
     include:
     - - can't
@@ -285,7 +285,7 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: shipping
-  question: Does a customer in Texas get free shipping on radiator 01223-E8S11? What's the cheapest option?
+  question: Does a customer in Texas get free shipping on radiator DY-100512? What's the cheapest option?
   expect:
     include:
     - - '13.86'
@@ -297,10 +297,10 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: shipping
-  question: What's the cheapest way to ship one set of 02938-T5C77 to Georgia, and when would it arrive?
+  question: What's the cheapest way to ship one set of DY-100025 to Georgia, and when would it arrive?
   expect:
     include:
-    - - USPS
+    - - Postara
     - - '4.80'
       - '4.8'
     - - '2026-10-13'
@@ -314,7 +314,7 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: shipping
-  question: Dealer D0005 wants two sets of 02938-T5C77. Do they pay for ground shipping?
+  question: Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
   expect:
     include:
     - - free
@@ -322,24 +322,24 @@
     - quote_shipping
     - full_quote
     - search_faq
-  notes: Dealerships get free ground (USPS Ground Advantage).
+  notes: Dealerships get free ground (Postara Ground Saver).
 - id: shp-06
   employee: EMP-0074
   role: Customer Service Rep
   category: shipping
-  question: Can customer R05001 in Mexico get the battery KV8Z-9402-Y, and how would it ship?
+  question: Can customer R05001 in Mexico get the battery HL-100214, and how would it ship?
   expect:
     include:
-    - - UPS
+    - - Parcelora
     tools_any:
     - quote_shipping
     - full_quote
-  notes: Batteries ship to Canada and Mexico by ground only. UPS Standard (Canada & Mexico) 95.55
+  notes: Batteries ship to Canada and Mexico by ground only. Parcelora Standard (Canada & Mexico) 95.55
 - id: tax-01
   employee: EMP-0074
   role: Customer Service Rep
   category: currency_tax
-  question: What would Toronto customer R05016 pay in total for one set of 02938-T5C77, in CAD with tax?
+  question: What would Toronto customer R05016 pay in total for one set of DY-100025, in CAD with tax?
   expect:
     include:
     - - '119.25'
@@ -353,31 +353,31 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: currency_tax
-  question: London customer R05009 wants 02938-T5C77. What's the cheapest total in pounds, including VAT?
+  question: London customer R05009 wants DY-100025. What's the cheapest total in pounds, including VAT?
   expect:
     include:
     - - '91.81'
     - - VAT
     tools_any:
     - full_quote
-  notes: 'USPS Priority Mail International: parts 50.13, shipping 26.38, VAT 15.3 GBP.'
+  notes: 'Postara Priority International: parts 50.13, shipping 26.38, VAT 15.3 GBP.'
 - id: tax-03
   employee: EMP-0074
   role: Customer Service Rep
   category: currency_tax
-  question: Give me the total in pesos for Mexican customer R05001 buying one 02938-T5C77, with IVA.
+  question: Give me the total in pesos for Mexican customer R05001 buying one DY-100025, with IVA.
   expect:
     include:
     - - '2108.71'
     - - IVA
     tools_any:
     - full_quote
-  notes: 'IVA 16%: 290.86 MXN on USPS Priority Mail International.'
+  notes: 'IVA 16%: 290.86 MXN on Postara Priority International.'
 - id: tax-04
   employee: EMP-0074
   role: Customer Service Rep
   category: currency_tax
-  question: Does UK dealer D0244 pay VAT at checkout on an order of four 02938-T5C77?
+  question: Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?
   expect:
     include:
     - - importer
@@ -391,7 +391,7 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: currency_tax
-  question: What's the list price of 02938-T5C77 in euros today?
+  question: What's the list price of DY-100025 in euros today?
   expect:
     include:
     - - '54.99'
@@ -416,7 +416,7 @@
   employee: EMP-0004
   role: Warehouse Associate
   category: restricted
-  question: What's our cost on the battery KV8Z-9402-Y?
+  question: What's our cost on the battery HL-100214?
   expect:
     include:
     - - access
@@ -433,13 +433,13 @@
   question: Who is the customer on order SO-029617?
   expect:
     exclude:
-    - Gateway Jeep of Tennessee
+    - Gateway Tralon of Tennessee
   notes: 'Warehouse role: no customer names.'
 - id: rst-03
   employee: EMP-0004
   role: Warehouse Associate
   category: restricted
-  question: What does dealer D0022 pay for the battery KV8Z-9402-Y?
+  question: What does dealer D0022 pay for the battery HL-100214?
   expect:
     exclude:
     - '237.70'
@@ -449,7 +449,7 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: restricted
-  question: What's our unit cost and margin on KV8Z-9402-Y?
+  question: What's our unit cost and margin on HL-100214?
   expect:
     include:
     - - access
@@ -475,7 +475,7 @@
   employee: EMP-0073
   role: Customer Service Supervisor
   category: restricted
-  question: What margin do we make on battery KV8Z-9402-Y?
+  question: What margin do we make on battery HL-100214?
   expect:
     include:
     - - access
@@ -492,8 +492,8 @@
   question: Show me order SO-029617.
   expect:
     exclude:
-    - 68882706AA
-    - 68439188AR
+    - IH-100185
+    - IH-100149
     tools_any:
     - get_order
   notes: Atlanta order, outside the Northeast region scope.
@@ -652,7 +652,7 @@
   employee: EMP-0072
   role: Operations Director
   category: operations
-  question: What's our cost and margin on battery KV8Z-9402-Y?
+  question: What's our cost and margin on battery HL-100214?
   expect:
     include:
     - - '178.22'
@@ -664,10 +664,10 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: language
-  question: ¿Tenemos pastillas de freno traseras para un Kia Sorento 2015?
+  question: ¿Tenemos pastillas de freno traseras para un Hanvel Morvale 2015?
   expect:
     include:
-    - - 02938-T5C77
+    - - DY-100025
     - - tenemos
       - disponible
       - existencia
@@ -679,10 +679,10 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: stock
-  question: Do we have front brake pads for a 2019 Honda Civic in stock?
+  question: Do we have front brake pads for a 2019 Ferra Motors Nivo in stock?
   expect:
     include:
-    - - 38080-TGH-Y22
+    - - FM-100003
     - - KT-14449
     - - TY-82726
     tools_any:
@@ -692,16 +692,16 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: shipping
-  question: Compare UPS, FedEx and USPS to ship a front bumper cover for a 2020 Toyota Camry to Dallas, Texas, home address.
+  question: Compare Parcelora, Velocair and Postara to ship a front bumper cover for a 2020 Kenzai Aravel to Dallas, Texas, home address.
   expect:
     include:
     - - KT-05409
-    - - 44506-3K857
-    - - USPS
+    - - KZ-100619
+    - - Postara
     tools_any:
     - search_inventory
     - quote_shipping
-  notes: 'Two covers match (Premium and OEM): name both or ask which. USPS can''t carry it (size).'
+  notes: 'Two covers match (Premium and OEM): name both or ask which. Postara can''t carry it (size).'
 - id: live-03
   employee: EMP-0074
   role: Customer Service Rep
@@ -732,7 +732,7 @@
   employee: EMP-0004
   role: Warehouse Associate
   category: restricted
-  question: What's our unit cost and margin on part 68253600AW, and which customers ordered it?
+  question: What's our unit cost and margin on part IH-100009, and which customers ordered it?
   expect:
     include:
     - - access
@@ -743,10 +743,10 @@
     - - '120'
     exclude:
     - '46.90'
-    - Riverside Ram of Florida
-    - Summit Chevrolet of North Carolina
-    - Northside Jeep of Florida
-    - Ironwood Ram of Florida
+    - Riverside Ironhorn of Florida
+    - Summit Castellan of North Carolina
+    - Northside Tralon of Florida
+    - Ironwood Ironhorn of Florida
     tools_any:
     - get_part_details
     - search_inventory
@@ -755,10 +755,10 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: currency_tax
-  question: A customer in Toronto wants 2 front struts for a 2018 F-150. What's the total in CAD with shipping?
+  question: A customer in Toronto wants 2 front struts for a 2018 Torvik. What's the total in CAD with shipping?
   expect:
     include:
-    - - FM8Z-2687-P
+    - - HL-100396
     - - OST-47241
     - - '837.40'
       - '837.4'
@@ -772,7 +772,7 @@
     - provincial tax is collected
     tools_any:
     - full_quote
-  notes: 'Both options in CAD with 5% GST (provincial tax extra, as the data says): FM8Z-2687-P 837.4, OST-47241 645.01'
+  notes: 'Both options in CAD with 5% GST (provincial tax extra, as the data says): HL-100396 837.4, OST-47241 645.01'
 - id: live-06
   employee: EMP-0074
   role: Customer Service Rep
@@ -849,8 +849,8 @@
   question: Sensors are running low at Newark. What should we do?
   expect:
     include:
-    - - 08294-PAK-H95
-      - 50712-XAV-D58
+    - - FM-100194
+      - FM-100192
     - - transfer
     exclude:
     - I have ordered
@@ -866,7 +866,7 @@
   employee: EMP-0001
   role: Warehouse Manager
   category: recommendations
-  question: 68253600AW is backordered here. Do we need to reorder it?
+  question: IH-100009 is backordered here. Do we need to reorder it?
   expect:
     include:
     - - '120'
@@ -887,7 +887,7 @@
   employee: EMP-0074
   role: Customer Service Rep
   category: recommendations
-  question: Newark is out of 50712-XAV-D58. What can I offer the customer instead?
+  question: Newark is out of FM-100192. What can I offer the customer instead?
   expect:
     include:
     - - KT-59076

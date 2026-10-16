@@ -1417,6 +1417,11 @@ SLIM_TABLES = {"part_fitment", "order_lines", "shipment_lines", "exchange_rates"
 # which keeps the database file around 43 MB. Recent data and every demo scenario are unaffected.
 HISTORY_START = "2025-01-01T00:00:00Z"
 
+# Fictional names: every real make, model, engine trade name, carrier and OEM part number is
+# replaced here, after generation, so the random draws and every number stay the same.
+import name_map
+name_map.translate(tables)
+
 if os.path.exists(DB_PATH): os.remove(DB_PATH)
 con = sqlite3.connect(DB_PATH)
 con.execute("PRAGMA page_size = 8192")

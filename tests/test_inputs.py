@@ -190,22 +190,22 @@ def test_assistant_analytics_tool_takes_a_category(ids):
 # --------------------------------------------------------------------------- part drawer: last 12 months of sales
 def test_part_sales_cover_the_last_12_months_with_zeros(client, ids):
     from app import services
-    r = client.get("/api/parts/KV8Z-9402-Y", headers=headers(ids["director"])).json()
+    r = client.get("/api/parts/HL-100214", headers=headers(ids["director"])).json()
     months = [m["order_month"] for m in r["monthly_sales"]]
     end = db.as_of()
     assert len(months) == 12 and months[-1] == f"{end.year:04d}-{end.month:02d}" and months == sorted(months)
     for m in r["monthly_sales"]:
         expected = db.scalar("SELECT COALESCE(SUM(quantity), 0) FROM v_sales WHERE part_number = ? AND order_month = ?",
-                             "KV8Z-9402-Y", m["order_month"])
+                             "HL-100214", m["order_month"])
         assert m["units"] == expected
     assert services._last_12_months([])[0]["units"] == 0                       # months without sales are zero
 
 
 def test_part_sales_follow_the_warehouse_scope(client, ids):
-    wh = client.get("/api/parts/KV8Z-9402-Y", headers=headers(ids["warehouse"])).json()["monthly_sales"]
+    wh = client.get("/api/parts/HL-100214", headers=headers(ids["warehouse"])).json()["monthly_sales"]
     for m in wh:
         expected = db.scalar("""SELECT COALESCE(SUM(quantity), 0) FROM v_sales WHERE part_number = ? AND order_month = ?
-                                AND fulfillment_warehouse = 'ATL'""", "KV8Z-9402-Y", m["order_month"])
+                                AND fulfillment_warehouse = 'ATL'""", "HL-100214", m["order_month"])
         assert m["units"] == expected and "revenue_usd" not in m
 
 
@@ -251,14 +251,14 @@ def test_missing_by_warehouse_and_category_answers_in_one_lookup(ids):
 # --------------------------------------------------------------------------- eval failures 2026-10-14
 def test_parts_that_differ_by_engine_list_the_engines(client, ids):
     """fit-01: a vehicle without an engine whose matches fit different engines says so, so the engine is asked first."""
-    p = {"q": "spark plugs", "year": 2015, "make": "Ford", "model": "F-150"}
+    p = {"q": "spark plugs", "year": 2015, "make": "Halvard", "model": "Torvik"}
     r = client.get("/api/inventory", params=p, headers=headers(ids["cs"])).json()
-    assert r["engines"] == ["2.7L V6 EcoBoost", "3.5L V6 EcoBoost", "5.0L V8"] and "Ask which engine" in r["note"]
+    assert r["engines"] == ["2.7L V6 Twin-Turbo", "3.5L V6 Twin-Turbo", "5.0L V8"] and "Ask which engine" in r["note"]
     one = client.get("/api/inventory", params={**p, "engine": "3.5"}, headers=headers(ids["cs"])).json()
     assert "engines" not in one and one["total"] == 2
     assert all("3.5" in f["engines"] for x in one["results"]
                for f in client.get(f"/api/parts/{x['part_number']}", headers=headers(ids["cs"])).json()["fits"])
-    same = client.get("/api/inventory", params={"q": "brake pads", "year": 2019, "make": "Honda", "model": "Civic"},
+    same = client.get("/api/inventory", params={"q": "brake pads", "year": 2019, "make": "Ferra Motors", "model": "Nivo"},
                       headers=headers(ids["cs"])).json()
     assert "engines" not in same                                  # parts that fit every engine need no question
 
@@ -266,10 +266,10 @@ def test_parts_that_differ_by_engine_list_the_engines(client, ids):
 def test_international_shipping_quotes_say_tax_is_not_included(ids):
     """tax-02: a shipping quote abroad states the tax that isn't in it, in full_quote's words."""
     cs = load_employee(ids["cs"])
-    q = json.loads(assistant.run_tool(cs, "quote_shipping", {"items": [{"part_number": "02938-T5C77"}],
+    q = json.loads(assistant.run_tool(cs, "quote_shipping", {"items": [{"part_number": "DY-100025"}],
                                                             "customer_id": "R05009"})[0])
     assert any("exclude import tax: VAT 20% collected at checkout (DDP)" in n for n in q["notes"])
-    us = json.loads(assistant.run_tool(cs, "quote_shipping", {"items": [{"part_number": "02938-T5C77"}],
+    us = json.loads(assistant.run_tool(cs, "quote_shipping", {"items": [{"part_number": "DY-100025"}],
                                                              "ship_to_state": "TX"})[0])
     assert not any("import tax" in n for n in us["notes"])
 

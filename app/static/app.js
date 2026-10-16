@@ -176,7 +176,7 @@ async function viewInventory() {
   const st = JSON.parse(sessionStorage.getItem("gw_inv") || "null") || { q: "", make: "", model: "", year: "", category: "", warehouse: defWh, stock_filter: "" };
   $("#main").innerHTML = intro() + `
     <form class="filters" id="inv-form">
-      <label class="field grow"><span>Part number, name or brand</span><input name="q" type="search" value="${esc(st.q)}" placeholder="e.g. brake pads front, 68253600AW"></label>
+      <label class="field grow"><span>Part number, name or brand</span><input name="q" type="search" value="${esc(st.q)}" placeholder="e.g. brake pads front, IH-100009"></label>
       <label class="field"><span>Make</span><select name="make">${opt("", "Any make")}${S.meta.makes.map((m) => opt(m, m, st.make)).join("")}</select></label>
       <label class="field"><span>Model</span><select name="model"><option value="">Any model</option></select></label>
       <label class="field"><span>Year</span><select name="year"><option value="">Any year</option></select></label>
@@ -344,7 +344,7 @@ async function viewOrders() {
   const scoped = S.emp.scope !== "Company";
   $("#main").innerHTML = intro() + (scoped ? `<p class="small muted" style="margin-top:-8px">Showing orders shipped from ${esc(S.emp.scope_label)}.</p>` : "") + `
     <form class="filters" id="ord-form">
-      <label class="field grow"><span>Order, customer, tracking or part number</span><input name="q" type="search" value="${esc(st.q)}" placeholder="e.g. SO-031950, D0042, 1Z…"></label>
+      <label class="field grow"><span>Order, customer, tracking or part number</span><input name="q" type="search" value="${esc(st.q)}" placeholder="e.g. SO-031950, D0042, PC…"></label>
       <label class="field"><span>Status</span><select name="status">${opt("", "Any status")}${S.meta.order_statuses.map((s) => opt(s, s, st.status)).join("")}</select></label>
       <label class="field"><span>Type</span><select name="order_type">${opt("", "Domestic and international")}${opt("Domestic", "Domestic", st.order_type)}${opt("International", "International", st.order_type)}</select></label>
       ${scoped ? "" : `<label class="field"><span>Warehouse</span><select name="warehouse">${whOptions(st.warehouse)}</select></label>`}
@@ -517,7 +517,7 @@ function renderDemo(d) {
 
 async function viewAssistant() {
   $("#main").innerHTML = intro() + `<p id="demo-note" class="demo-note" hidden></p><div class="chat"><div class="chat-col"><div class="chat-log" id="chat-log" aria-live="polite"></div>
-    <form class="chat-input" id="chat-form"><textarea name="m" rows="2" placeholder="Ask a question, e.g. Do we have rear rotors for a 2020 RAV4 in Dallas?" aria-label="Your question"></textarea>
+    <form class="chat-input" id="chat-form"><textarea name="m" rows="2" placeholder="Ask a question, e.g. Do we have rear rotors for a 2020 Tavio in Dallas?" aria-label="Your question"></textarea>
     <button class="btn" type="submit">Send</button></form></div>
     <div class="chat-side"><h3>Try asking</h3><div id="sugg"></div>
       <button class="btn ghost small" id="chat-clear" type="button">Start a new conversation</button>

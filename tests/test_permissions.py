@@ -173,31 +173,31 @@ def _all_field_names(client, ids):
     intl = db.scalar("SELECT order_id FROM orders WHERE order_type = 'International' AND status = 'Delivered' LIMIT 1")
     with_case = db.scalar("SELECT order_id FROM support_cases WHERE order_id IS NOT NULL LIMIT 1")
     for url, params in [("/api/inventory", {"limit": 5}), ("/api/inventory", {"stock_filter": "missing", "limit": 5}),
-                        ("/api/parts/KV8Z-9402-Y", None), (f"/api/parts/{old}", None), ("/api/in-transit", None),
+                        ("/api/parts/HL-100214", None), (f"/api/parts/{old}", None), ("/api/in-transit", None),
                         ("/api/orders", {"limit": 5}), (f"/api/orders/{intl}", None), (f"/api/orders/{with_case}", None),
                         ("/api/cases", None), ("/api/analytics", {"period": "all"}),
                         ("/api/analytics", {"period": "all", "category": "Brakes"}),
-                        ("/api/parts/68253600AW/suggestions", {"warehouse": "ATL"}),
-                        ("/api/parts/08294-PAK-H95/suggestions", {"warehouse": "NWK"})]:
+                        ("/api/parts/IH-100009/suggestions", {"warehouse": "ATL"}),
+                        ("/api/parts/FM-100194/suggestions", {"warehouse": "NWK"})]:
         r = client.get(url, params=params, headers=h)
         assert r.status_code == 200, url
         walk(r.json())
-    for body in ({"items": [{"part_number": "KV8Z-9402-Y"}], "ship_to_state": "FL"},
-                 {"items": [{"part_number": "02938-T5C77"}], "ship_to_country": "CA", "customer_id": "R05016"},
-                 {"items": [{"part_number": "KV8Z-9402-Y"}], "ship_to_country": "GB"}):
+    for body in ({"items": [{"part_number": "HL-100214"}], "ship_to_state": "FL"},
+                 {"items": [{"part_number": "DY-100025"}], "ship_to_country": "CA", "customer_id": "R05016"},
+                 {"items": [{"part_number": "HL-100214"}], "ship_to_country": "GB"}):
         walk(client.post("/api/quote", json=body, headers=h).json())
     od, sup = load_employee(ids["director"]), load_employee(ids["cs_sup"])
     cust = db.scalar("SELECT customer_id FROM customers WHERE customer_type = 'Individual' LIMIT 1")
     for emp, name, a in [(od, "search_inventory", {"q": "battery", "limit": 3}), (od, "get_part_details", {"part_number": old}),
                          (od, "find_in_transit", {}), (od, "search_orders", {"limit": 3}), (od, "get_order", {"order_id": intl}),
-                         (od, "get_part_price", {"part_number": "KV8Z-9402-Y", "customer_id": "D0022"}),
+                         (od, "get_part_price", {"part_number": "HL-100214", "customer_id": "D0022"}),
                          (od, "get_part_price", {"part_number": old}),
-                         (od, "quote_shipping", {"items": [{"part_number": "KV8Z-9402-Y"}], "ship_to_state": "FL"}),
-                         (od, "full_quote", {"items": [{"part_number": "02938-T5C77"}], "customer_id": "R05016"}),
+                         (od, "quote_shipping", {"items": [{"part_number": "HL-100214"}], "ship_to_state": "FL"}),
+                         (od, "full_quote", {"items": [{"part_number": "DY-100025"}], "customer_id": "R05016"}),
                          (od, "list_support_cases", {"status": "active", "limit": 3}), (od, "analytics_summary", {"period": "all"}),
                          (od, "search_faq", {"question": "return policy"}), (od, "contact_team", {"department_id": "RET"}),
                          (od, "escalate_to_person", {"question": "refund 400", "refund_amount_usd": 400}),
-                         (od, "recommend_actions", {"part_number": "50712-XAV-D58", "warehouse": "NWK"}),
+                         (od, "recommend_actions", {"part_number": "FM-100192", "warehouse": "NWK"}),
                          (od, "recommend_actions", {"warehouse": "NWK"}),
                          (sup, "propose_support_case", {"customer_id": cust, "department_id": "RET", "contact_reason": "x"})]:
         text, is_err = assistant.run_tool(emp, name, a)

@@ -22,7 +22,7 @@ def test_battery_ground_only_domestic():
 def test_usps_refuses_bumper_and_no_free_oversize():
     q = AT.quote_shipping([{"part_number": _part("Front Bumper Cover")}], "US", "TX")
     assert q["ok"]
-    assert all(o["carrier"] != "USPS" for o in q["options"])
+    assert all(o["carrier"] != "Postara" for o in q["options"])
     assert all(o["customer_pays_usd"] > 0 for o in q["options"])
 
 

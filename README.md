@@ -16,13 +16,15 @@ Customer service agents, warehouse staff and managers use it to:
 - **Assistant:** Gemini 3.1 Flash-Lite through OpenRouter.
 - **Hosting:** Railway.
 
-> **Capstone prototype.** All data is synthetic and royalty-free; see `docs/DATA_DICTIONARY.md`. Shipping and exchange rates are realistic estimates, not live carrier or bank rates. This is a **demo version**: the assistant answers 5 questions per visitor.
+> **Capstone prototype.** Vehicles and carriers are fictional equivalents of common U.S. models and major parcel carriers. All data is synthetic and royalty-free; see `docs/DATA_DICTIONARY.md`. Shipping and exchange rates are realistic estimates, not live carrier or bank rates. This is a **demo version**: the assistant answers 5 questions per visitor.
+>
+> Gatewell Auto Parts and all companies, vehicles, brands, carriers, people, orders, prices and rates in this demo are fictional. Any resemblance to real products or companies is coincidental. Place names and currencies are real.
 
 ## What's inside
 
 | Tab | Who sees it | What it does |
 |---|---|---|
-| **Inventory** | Everyone | Search parts by number, name, brand or vehicle (year/make/model). See stock in every bucket at every warehouse: available, reserved, damaged, missing, in transit, backordered. The part view adds bin locations, inbound shipments, fitment, equivalent parts, and a **shipping quote** from UPS, FedEx, USPS and DHL. |
+| **Inventory** | Everyone | Search parts by number, name, brand or vehicle (year/make/model). See stock in every bucket at every warehouse: available, reserved, damaged, missing, in transit, backordered. The part view adds bin locations, inbound shipments, fitment, equivalent parts, and a **shipping quote** from Parcelora, Velocair, Postara and Globexa Express. |
 | **Orders** | Everyone (warehouse staff see only their warehouse) | Find orders by number, customer, tracking number or part. See lines with bins, carrier and tracking, customs and export documents, currency, import tax and payment. |
 | **Assistant** | Everyone | Ask questions in plain English, 5 per visitor in the demo. It looks up answers with the same tools the screens use, limited to what your role may see. When it can't answer, it hands off to the right team with phone, email, hours and FAQ links. |
 | **Support cases** | Customer service, supervisors, managers | Open and resolved customer contacts, including handoffs from the chat. |
@@ -106,7 +108,7 @@ There are 37 tests. They run against a throwaway copy of the database and need n
 - **Permissions:** what every role can and can't see, and data-scope limits.
 - **The assistant's tool loop:** tool access by role, redaction, request settings, malformed tool calls, escalation, the loop limit, audit logging, and OpenRouter error handling.
 - **The demo limit:** 5 per visitor, not reset by switching employees, failures don't count, a backstop per network address, and an off switch.
-- **Business rules:** batteries ground-only and not overseas, USPS size limits, no free shipping on oversize parts, currency and tax totals, after-hours handoff, and a read-only database.
+- **Business rules:** batteries ground-only and not overseas, Postara size limits, no free shipping on oversize parts, currency and tax totals, after-hours handoff, and a read-only database.
 - **Deployment:** the health check, security headers, and the first-start database copy.
 
 ## Project layout

@@ -33,9 +33,9 @@ def _tool_messages(payload):
 
 def test_tool_loop_runs_tools_and_redacts(ids):
     emp = load_employee(ids["warehouse"])
-    fake = FakeModel([("tool", [("search_inventory", {"year": 2019, "make": "Honda", "model": "Civic", "q": "brake pads"})]),
+    fake = FakeModel([("tool", [("search_inventory", {"year": 2019, "make": "Ferra Motors", "model": "Nivo", "q": "brake pads"})]),
                       ("text", "Yes - we have them.")])
-    out = assistant.chat(emp, [{"role": "user", "content": "Brake pads for a 2019 Civic?"}], client=fake)
+    out = assistant.chat(emp, [{"role": "user", "content": "Brake pads for a 2019 Nivo?"}], client=fake)
     assert out["reply"] == "Yes - we have them."
     assert out["tools_used"][0]["tool"] == "search_inventory" and out["tools_used"][0]["ok"]
     result = json.loads(_tool_messages(fake.calls[1])[0]["content"])

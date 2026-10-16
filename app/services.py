@@ -103,7 +103,7 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
                      stock_filter: str | None = None, limit: int = 50, engine: str | None = None) -> dict:
     """Parts matching a text search and/or vehicle, with stock totals (company-wide or one warehouse).
     stock_filter: low (at or below reorder point), out (none available), missing (count shortfalls), aged (no activity 180+ days).
-    engine: part of the engine name ('3.5', 'EcoBoost', '5.0L V8'), used with a vehicle.
+    engine: part of the engine name ('3.5', 'Twin-Turbo', '5.0L V8'), used with a vehicle.
     'count' is the rows returned; 'total' and 'totals' cover every match, so a capped list is never mistaken for all of it.
     When a vehicle without an engine matches parts that fit different engines, 'engines' lists them, so the
     engine can be asked for before parts are offered."""

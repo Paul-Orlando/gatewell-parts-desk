@@ -41,7 +41,7 @@ The app suggests actions; people decide. Nothing is created or changed.
 
 ### A4. Tests
 
-- the Atlanta backorder part (68253600AW) gets the inbound shipment noted, and no reorder if inbound covers it
+- the Atlanta backorder part (IH-100009) gets the inbound shipment noted, and no reorder if inbound covers it
 - transfer sources never suggest a warehouse taking itself below its reorder point
 - scope: an Atlanta manager can't get recommendations for Newark
 - redaction: a CS rep doesn't see shipping cost in recommendations
@@ -97,12 +97,12 @@ After running Flash-Lite, run one other model, chosen by me, and write `tests/ev
 Create `docs/user_test/`:
 
 1. **`script.md`:** a 20-minute session.
-   - a short intro: they're testing the app, not being tested
+   - a short intro: they're testing the app, not being tested. Include the line "Vehicles and carriers are fictional equivalents of common U.S. models and major parcel carriers."
    - one consent line
    - five timed tasks, each done twice: first with the screens only, then with the assistant
-     1. Is there a front brake pad for a 2019 Honda Civic in stock near Atlanta?
-     2. What's the cheapest way to ship a front bumper cover for a 2020 Camry to Dallas, and when would it arrive?
-     3. As a warehouse associate in Atlanta: where is part 68253600AW shelved, and when is more arriving?
+     1. Is there a front brake pad for a 2019 Ferra Motors Nivo in stock near Atlanta?
+     2. What's the cheapest way to ship a front bumper cover for a 2020 Aravel to Dallas, and when would it arrive?
+     3. As a warehouse associate in Atlanta: where is part IH-100009 shelved, and when is more arriving?
      4. As the Operations Director: which warehouse is losing stock, in which category, and which part should we look at first?
      5. A customer wants a $400 refund for a wrong radiator. What do you do?
    - three closing questions: what was confusing; what would you use daily; a 1–5 rating
@@ -114,10 +114,10 @@ Create `docs/user_test/`:
 ## Phase D: Demo preparation
 
 1. **`docs/DEMO_SCRIPT.md`:** a five-minute script with exact clicks and questions, one role per beat:
-   - **0:00:** the role cards.
+   - **0:00:** the role cards. Opening narration, said aloud while the role cards are on screen: "Vehicles and carriers are fictional equivalents of common U.S. models and major parcel carriers."
    - **0:30:** CS Rep asks for the Toronto struts total in CAD.
    - **1:30:** CS Rep asks about the $400 refund.
-   - **2:15:** the Warehouse Associate asks for costs on 68253600AW.
+   - **2:15:** the Warehouse Associate asks for costs on IH-100009.
    - **3:00:** the Operations Director goes Analytics → Newark → Sensors → clicks the part → Suggested actions.
    - **4:15:** the evidence slide (eval pass rate, user test result, cost per question).
 

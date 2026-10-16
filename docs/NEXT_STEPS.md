@@ -10,7 +10,7 @@ This guide takes the project from the delivered prototype to a deployed demo on 
 | Assistant (Gemini 3.1 Flash-Lite via OpenRouter) | Done; tested end to end against a stand-in for OpenRouter. **Not yet tried with your real key.** |
 | Roles, redaction, data scope, read-only database | Done; tested |
 | Demo limit (5 questions per visitor) | Done; tested |
-| Shipping quotes (UPS, FedEx, USPS, DHL), currencies, import tax | Done; tested |
+| Shipping quotes (Parcelora, Velocair, Postara, Globexa Express), currencies, import tax | Done; tested |
 | Railway readiness: health check, security headers, volume copy, `Procfile` | Done; tested |
 | Logo and design rules | Done |
 | **Company sign-on** | **Not started. Required before a public deploy.** |

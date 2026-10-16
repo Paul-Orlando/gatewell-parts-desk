@@ -232,14 +232,14 @@ def demo_status(request: Request, emp: Employee = Depends(current_employee)):
 
 @app.get("/api/assistant/suggestions")
 def suggestions(emp: Employee = Depends(current_employee)):
-    common = ["Do we have front brake pads for a 2019 Honda Civic in stock?",
+    common = ["Do we have front brake pads for a 2019 Ferra Motors Nivo in stock?",
               "What's in transit to my warehouse, and is anything delayed?"]
     by_role = {
         "warehouse": ["Which parts in my warehouse need reordering?",
                       "Which orders from my warehouse are still processing, and which bins are the parts in?",
                       "What batteries are on the way to us for winter?"],
-        "customer_service": ["A customer in Toronto wants 2 front struts for a 2018 F-150. What's the total in CAD with shipping?",
-                             "Compare UPS, FedEx and USPS to ship a bumper cover to Dallas.",
+        "customer_service": ["A customer in Toronto wants 2 front struts for a 2018 Torvik. What's the total in CAD with shipping?",
+                             "Compare Parcelora, Velocair and Postara to ship a bumper cover to Dallas.",
                              "Which support cases are still open, and who has them?"],
         "cs_supervisor": ["How many support cases are open by team, and are any queued after hours?",
                           "Which international orders are held in customs?"],

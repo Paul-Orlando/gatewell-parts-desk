@@ -18,7 +18,7 @@
 
 **One set of business logic serves both the screens and the assistant.**
 - When the Inventory tab shows stock, it calls `services.search_inventory`.
-- When the assistant answers "do we have brake pads for a 2019 Civic?", it calls the same function.
+- When the assistant answers "do we have brake pads for a 2019 Nivo?", it calls the same function.
 - The same goes for shipping quotes, prices and analytics.
 
 So the assistant can never know more, or say something different, than the screens show.
@@ -71,7 +71,7 @@ The assistant has **no** tool that changes inventory, orders, prices, refunds or
 1. **Packages:** small parts share a box; larger parts go several to a carton, up to 50 lb.
 2. **Billable weight:** the greater of actual and dimensional weight.
 3. **Base charge:** the zone rate, minus the negotiated discount.
-4. **Extras:** surcharges (residential, additional handling, large package, hazmat, USPS nonstandard length), then fuel as a percentage on top.
+4. **Extras:** surcharges (residential, additional handling, large package, hazmat, Postara nonstandard length), then fuel as a percentage on top.
 
 The rule checks are separate. Each one rules out a service and records why:
 - weight and size limits
@@ -100,7 +100,7 @@ Read `docs/DATA_DICTIONARY.md` for every table. The main ones are:
 |---|---|
 | Pick-an-employee sign-in | Company single sign-on (e.g. Okta, Microsoft Entra ID); roles from directory groups |
 | SQLite snapshot | Read replica or API of the real warehouse management and ERP systems |
-| Synthetic rate cards | UPS, FedEx, USPS and DHL rating APIs with the company's account |
+| Synthetic rate cards | The parcel carriers' rating APIs with the company's account |
 | Synthetic exchange rates | Daily feed (e.g. Federal Reserve H.10 or ECB reference rates) |
 | Audit log file | Central logging with retention rules and review dashboards |
 | One server process | Railway service with a volume at `/data`, health check at `/api/health`, HTTPS, and monitoring |
