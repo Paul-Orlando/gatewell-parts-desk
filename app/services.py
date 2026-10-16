@@ -5,7 +5,7 @@ Every function takes the signed-in Employee, applies their data scope, and retur
 dicts. Callers pass results through auth.redact() before anything leaves the server, so the
 screens and the assistant can never show an employee more than their role allows.
 """
-from datetime import datetime
+from datetime import date, datetime
 
 from . import db
 from .auth import Employee, scope_sql
@@ -250,10 +250,34 @@ ORDER_LIST_COLS = """o.order_id, o.ordered_at_utc, o.ordered_at_local, o.order_t
                      o.order_total_usd, o.payment_status, o.customs_status"""
 
 
+def country_codes() -> list[str]:
+    return [r["country_code"] for r in db.rows("SELECT country_code FROM countries ORDER BY country_code")]
+
+
+def _order_date(value: str | None, name: str) -> str | None:
+    """A YYYY-MM-DD order date, or None. Anything else is a clear error."""
+    if not value:
+        return None
+    try:
+        return date.fromisoformat(str(value).strip()[:10]).isoformat()
+    except ValueError:
+        raise BadInput(f"{name} must be a date like 2026-10-05 (YYYY-MM-DD), not '{value}'.")
+
+
 def search_orders(emp: Employee, q: str | None = None, status: str | None = None, order_type: str | None = None,
                   warehouse: str | None = None, customer_type: str | None = None, days: int | None = None,
-                  limit: int = 50) -> dict:
+                  limit: int = 50, ship_to_country: str | None = None, date_from: str | None = None,
+                  date_to: str | None = None) -> dict:
+    """date_from / date_to: order date in the customer's local time, inclusive. Filters only narrow the
+    employee's scope; 'total' and 'totals' cover every match."""
     warehouse = warehouse_code(warehouse)
+    if ship_to_country:
+        ship_to_country = str(ship_to_country).strip().upper()
+        if ship_to_country not in country_codes():
+            raise BadInput(f"Unknown country code '{ship_to_country}'. Use one of: {', '.join(country_codes())}.")
+    date_from, date_to = _order_date(date_from, "date_from"), _order_date(date_to, "date_to")
+    if date_from and date_to and date_from > date_to:
+        raise BadInput(f"date_from ({date_from}) is after date_to ({date_to}).")
     status = _choice(status, order_statuses(), "order status")
     order_type = _choice(order_type, ["Domestic", "International"], "order type")
     customer_type = _choice(customer_type, ["Dealership", "Individual"], "customer type")
@@ -268,6 +292,9 @@ def search_orders(emp: Employee, q: str | None = None, status: str | None = None
     if order_type: where.append("o.order_type = ?"); args.append(order_type)
     if warehouse: where.append("o.fulfillment_warehouse = ?"); args.append(warehouse)
     if customer_type: where.append("o.customer_type = ?"); args.append(customer_type)
+    if ship_to_country: where.append("o.ship_to_country_code = ?"); args.append(ship_to_country)
+    if date_from: where.append("substr(o.ordered_at_local, 1, 10) >= ?"); args.append(date_from)
+    if date_to: where.append("substr(o.ordered_at_local, 1, 10) <= ?"); args.append(date_to)
     if days:
         where.append("o.ordered_at_utc >= strftime('%Y-%m-%dT%H:%M:%SZ', ?, ?)"); args += [db.as_of().strftime("%Y-%m-%dT%H:%M:%SZ"), f"-{int(days)} days"]
     base = f"FROM orders o JOIN customers c USING (customer_id) WHERE {' AND '.join(where)} {sc}"

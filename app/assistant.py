@@ -87,13 +87,19 @@ TOOLS = [
          run=lambda e, a: services.in_transit(e, **a)),
     dict(name="search_orders", roles="all",
          description="Find orders by order number, customer ID or name, tracking number, or part number; filter by status, "
-                     "order_type (Domestic/International), shipping warehouse (code or city), customer_type, or last N days. "
-                     "Orders waiting to be picked or shipped have status Processing. 'total' counts every match.",
+                     "order_type (Domestic/International), shipping warehouse (code or city), customer_type, ship-to "
+                     "country (ISO code), order date range (date_from/date_to, inclusive) or last N days. Orders waiting "
+                     "to be picked or shipped have status Processing. 'total' and 'totals' (order count and USD total) "
+                     "cover every match, not just the rows shown.",
          schema={"type": "object", "properties": {
              "q": {"type": "string"}, "status": {"type": "string", "enum": services.order_statuses()},
              "order_type": {"type": "string", "enum": ["Domestic", "International"]},
              "warehouse": {"type": "string", "enum": WAREHOUSE_CODES, "description": "Warehouse code (see the list in your instructions)"},
              "customer_type": {"type": "string", "enum": ["Dealership", "Individual"]},
+             "ship_to_country": {"type": "string", "enum": services.country_codes(),
+                                 "description": "ISO country code the order ships to, e.g. CA, MX, GB"},
+             "date_from": {"type": "string", "description": "YYYY-MM-DD, order date in the customer's local time, inclusive"},
+             "date_to": {"type": "string", "description": "YYYY-MM-DD, order date in the customer's local time, inclusive"},
              "days": {"type": "integer"}, "limit": {"type": "integer", "maximum": 50}}},
          run=lambda e, a: services.search_orders(e, **a)),
     dict(name="get_order", roles="all",
@@ -110,14 +116,15 @@ TOOLS = [
          run=lambda e, a: AT.get_part_price(**a)),
     dict(name="quote_shipping", roles="all",
          description="Shipping cost and delivery date from every Parcelora, Velocair, Postara and Globexa Express service for a set of parts to a "
-                     "destination (U.S. state, or country code), cheapest first, plus services that can't carry it and why.",
+                     "destination (U.S. state, or country code), cheapest first, plus services that can't carry it and why."
+                     " Items not in stock show 'After stock arrives' (with the next inbound date) instead of a delivery date; never give a delivery date for them.",
          schema={"type": "object", "properties": {"items": _items_schema(), "ship_to_country": {"type": "string"},
                                                   "ship_to_state": {"type": "string"}, "residential": {"type": "boolean"},
                                                   "customer_id": {"type": "string"}}, "required": ["items"]},
          run=lambda e, a: AT.quote_shipping(**a)),
     dict(name="full_quote", roles={"customer_service", "cs_supervisor", "manager"},
          description="Total a customer would pay - parts at their price, core charges, shipping per carrier, import tax - "
-                     "in their currency.",
+                     "in their currency. Items not in stock show 'After stock arrives' (with the next inbound date) instead of a delivery date; never give a delivery date for them.",
          schema={"type": "object", "properties": {"items": _items_schema(), "customer_id": {"type": "string"},
                                                   "ship_to_country": {"type": "string"}, "ship_to_state": {"type": "string"}},
                  "required": ["items"]},

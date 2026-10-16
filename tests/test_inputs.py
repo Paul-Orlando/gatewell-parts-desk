@@ -302,3 +302,33 @@ def test_oversized_results_drop_whole_sections_and_stay_valid_json(ids):
     big = {"a": "x" * 9000, "b": "y" * 9000, "c": 1}
     out = json.loads(assistant._fit(big))
     assert out["c"] == 1 and "was left out" in out["_shortened"]
+
+
+def test_search_orders_by_country_and_date_range_totals_match(client, ids):
+    emp = load_employee(ids["director"])
+    a = {"ship_to_country": "ca", "date_from": "2026-09-01", "date_to": "2026-09-30", "limit": 3}
+    d = json.loads(assistant.run_tool(emp, "search_orders", a)[0])
+    exact = db.one("""SELECT COUNT(*) n, ROUND(SUM(order_total_usd), 2) usd FROM orders
+                      WHERE ship_to_country_code = 'CA' AND substr(ordered_at_local, 1, 10) BETWEEN '2026-09-01' AND '2026-09-30'""")
+    assert d["total"] == d["totals"]["orders"] == exact["n"] > d["count"]
+    assert d["totals"]["order_total_usd"] == exact["usd"]
+    assert all(r["ship_to_country"] == "Canada" for r in d["results"])
+    day = db.scalar("SELECT COUNT(*) FROM orders WHERE substr(ordered_at_local, 1, 10) = '2026-10-05'")
+    one = client.get("/api/orders", params={"date_from": "2026-10-05", "date_to": "2026-10-05"}, headers=headers(ids["director"])).json()
+    assert one["total"] == day > 0                                                       # both end days included
+    assert assistant.run_tool(emp, "search_orders", {"ship_to_country": "FR"})[1]
+    assert assistant.run_tool(emp, "search_orders", {"date_from": "2026-10-05", "date_to": "2026-10-01"})[1]
+    assert client.get("/api/orders", params={"date_from": "Oct 5"}, headers=headers(ids["director"])).status_code == 400
+
+
+def test_order_filters_keep_scope_and_hide_money_from_warehouse_roles(client, ids):
+    money = {"order_total_usd", "total_due_local", "goods_total_local", "shipping_local", "shipping_usd"}
+    params = {"date_from": "2026-09-01", "date_to": "2026-10-11", "ship_to_country": "US"}
+    api = client.get("/api/orders", params=params, headers=headers(ids["warehouse"])).json()
+    tool = json.loads(assistant.run_tool(load_employee(ids["warehouse"]), "search_orders", {**params, "limit": 5})[0])
+    for d in (api, tool):
+        assert d["total"] > 0 and not money & set(d["totals"])
+        assert all(not money & set(r) for r in d["results"])
+    exact = db.scalar("""SELECT COUNT(*) FROM orders WHERE fulfillment_warehouse = 'ATL' AND ship_to_country_code = 'US'
+                         AND substr(ordered_at_local, 1, 10) BETWEEN '2026-09-01' AND '2026-10-11'""")
+    assert api["total"] == tool["total"] == exact                                       # still only ATL

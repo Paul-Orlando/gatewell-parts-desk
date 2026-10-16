@@ -220,13 +220,61 @@ def quote_shipping(items, ship_to_country="US", ship_to_state=None, residential=
         return sum(min(q, (_one(c, "SELECT qty_available FROM v_stock_position WHERE part_id=? AND warehouse_code=?",
                                 p["part_id"], wh) or {"qty_available": 0})["qty_available"]) for p, q in parts_qty)
     need = sum(q for _, q in parts_qty)
+
+    def available(p, wh_):
+        return (_one(c, "SELECT qty_available FROM v_stock_position WHERE part_id=? AND warehouse_code=?",
+                     p["part_id"], wh_) or {"qty_available": 0})["qty_available"]
+
+    def next_inbound(p, wh_=None):
+        """Earliest inbound shipment of this part, to wh_ if given, else to any warehouse."""
+        r = _one(c, "SELECT destination_warehouse, SUM(quantity) quantity, eta_destination_local FROM v_in_transit "
+                    "WHERE part_id = ?" + (" AND destination_warehouse = ?" if wh_ else "") +
+                    " GROUP BY shipment_id ORDER BY eta_utc LIMIT 1", p["part_id"], *([wh_] if wh_ else []))
+        return dict(warehouse=r["destination_warehouse"], quantity=r["quantity"],
+                    eta_local=r["eta_destination_local"]) if r else None
+
+    def first_inbound(wh_):
+        """Sort key: the latest of the earliest inbound ETAs for items this warehouse can't cover (none = last)."""
+        etas = []
+        for p, q in parts_qty:
+            if available(p, wh_) < q:
+                nxt = next_inbound(p, wh_)
+                etas.append(nxt["eta_local"] if nxt else "9999")
+        return max(etas) if etas else ""
+
     wh = from_warehouse
     if not wh:
         cands = serving + [w["warehouse_code"] for w in _all(c, "SELECT warehouse_code FROM warehouses") if w["warehouse_code"] not in serving]
-        scored = sorted(cands, key=lambda w_: (-coverage(w_), cands.index(w_)))
+        scored = sorted(cands, key=lambda w_: (-coverage(w_), first_inbound(w_) if coverage(w_) < need else "", cands.index(w_)))
         wh = scored[0]
-        if coverage(wh) < need: notes.append("Not every item is in stock at one warehouse; quoting from the warehouse with the most stock.")
-        elif wh not in serving: notes.append(f"Ships from {wh} because the nearest warehouse is out of stock.")
+        if coverage(wh) >= need and wh not in serving:
+            notes.append(f"Ships from {wh} because the nearest warehouse is out of stock.")
+
+    # per-item stock at the ship-from warehouse; items not in stock get no delivery date
+    lines, waiting = [], []
+    for p, q in parts_qty:
+        avail = available(p, wh)
+        line = dict(part_number=p["part_number"], quantity=q, available_at_ship_from=avail,
+                    stock_status="In stock" if avail >= q else "Not in stock")
+        if avail < q:
+            line["next_inbound"] = next_inbound(p, wh) or next_inbound(p)
+            waiting.append(line)
+        lines.append(line)
+    after_stock = None
+    if waiting:
+        def due(n):
+            d = datetime.fromisoformat(n["eta_local"]).date()
+            return f"next inbound: {n['quantity']} to {n['warehouse']}, due {d:%a}, {d:%b} {d.day}"
+        inbound = [ln["next_inbound"] for ln in waiting if ln["next_inbound"]]
+        latest = max(inbound, key=lambda n: n["eta_local"]) if len(inbound) == len(waiting) else None
+        after_stock = "After stock arrives" + (f" ({due(latest)})" if latest else "")
+        for ln in waiting:
+            anywhere = _one(c, "SELECT SUM(qty_available) n FROM v_stock_position s JOIN parts p USING (part_id) "
+                               "WHERE p.part_number = ?", ln["part_number"])["n"] or 0
+            where = (f"isn't available at any warehouse" if not anywhere else
+                     f"isn't available at {wh} together with the rest of the order ({anywhere} available elsewhere)")
+            notes.append(f"{ln['part_number']} {where}. Rates are shown; delivery is after stock arrives" +
+                         (f" ({due(ln['next_inbound'])})." if ln["next_inbound"] else "; nothing is inbound yet."))
     whrow = _one(c, "SELECT * FROM warehouses WHERE warehouse_code = ?", wh)
     zone = str(_one(c, "SELECT zone FROM shipping_zones_domestic WHERE warehouse_code=? AND state_code=?", wh,
                     ship_to_state.upper())["zone"]) if domestic else country["shipping_zone"]
@@ -253,7 +301,9 @@ def quote_shipping(items, ship_to_country="US", ship_to_state=None, residential=
                             cost_local=_money(cost * fx["units_per_usd"] * (1 + margin), fx["decimals"]),
                             transit_business_days=f'{rate["transit_days_min"]}-{rate["transit_days_max"]}'
                             if rate["transit_days_min"] != rate["transit_days_max"] else str(rate["transit_days_min"]),
-                            ships_on=ship_day.isoformat(), estimated_delivery_by=eta.isoformat(), packages=detail))
+                            ships_on=None if after_stock else ship_day.isoformat(),
+                            estimated_delivery_by=None if after_stock else eta.isoformat(),
+                            **({"delivery": after_stock} if after_stock else {}), packages=detail))
     options.sort(key=lambda o: o["cost_usd"])
     free = None
     dealer = bool(cu and cu["customer_type"] == "Dealership")
@@ -278,7 +328,7 @@ def quote_shipping(items, ship_to_country="US", ship_to_state=None, residential=
                 ship_to=(ship_to_state.upper() + ", US") if domestic else country["country_name"], zone=zone,
                 residential=residential, currency=ccy, fx_rate_units_per_usd=fx["units_per_usd"],
                 package_count=len(pkgs), total_weight_lb=round(sum(p["weight_lb"] for p in pkgs), 2),
-                options=options, unavailable=unavailable, notes=notes,
+                lines=lines, all_in_stock=not waiting, options=options, unavailable=unavailable, notes=notes,
                 disclaimer="Estimated rates for prototyping; final carrier charges may differ.")
 
 def full_quote(items, customer_id=None, ship_to_country="US", ship_to_state=None, residential=True):
@@ -305,11 +355,16 @@ def full_quote(items, customer_id=None, ship_to_country="US", ship_to_state=None
         ship_local = _money(o["customer_pays_usd"] * ship["fx_rate_units_per_usd"] * (1.02 if ccy != "USD" else 1), dec)
         tax = _money((parts_local + ship_local) * (country["import_tax_pct"] or 0) / 100, dec) if collect_tax else 0
         totals.append(dict(carrier=o["carrier"], service=o["service"], delivery_by=o["estimated_delivery_by"],
+                           **({"delivery": o["delivery"]} if "delivery" in o else {}),
                            parts=parts_local, core_charges=cores_local, shipping=ship_local,
                            import_tax=tax, total=_money(parts_local + cores_local + ship_local + tax, dec)))
+    stock = {ln["part_number"]: ln for ln in ship["lines"]}
     c.close()
-    return dict(ok=True, currency=ccy, lines=[{k: l[k] for k in ("part_number", "part_name", "brand", "quantity",
-                "unit_price_local", "subtotal_local", "core_charge_local", "in_stock_total")} for l in lines],
+    return dict(ok=True, currency=ccy, all_in_stock=ship["all_in_stock"],
+                lines=[{**{k: l[k] for k in ("part_number", "part_name", "brand", "quantity", "unit_price_local",
+                                             "subtotal_local", "core_charge_local", "in_stock_total")},
+                        **{k: v for k, v in stock.get(l["part_number"], {}).items()
+                           if k in ("stock_status", "available_at_ship_from", "next_inbound")}} for l in lines],
                 import_tax=(f'{country["import_tax_name"]} {country["import_tax_pct"]}% collected at checkout (DDP)'
                             if collect_tax else ("Paid by the importer on arrival (DAP)" if country["country_code"] != "US"
                                                  else "U.S. sales tax not included in this prototype")),

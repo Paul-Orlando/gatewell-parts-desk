@@ -331,7 +331,7 @@ function renderQuote(q) {
   return `<p class="small muted" style="margin:10px 0 6px">Ships from ${esc(q.ship_from)} to ${esc(q.ship_to)}, zone ${esc(q.zone)}, ${n(q.package_count)} package(s), ${n(q.total_weight_lb, 1)} lb. ${q.notes.map(esc).join(" ")}</p>
     <div class="table-wrap"><table><thead><tr><th>Carrier</th><th>Service</th>${charges ? '<th class="num">Shipping</th>' : ""}${local ? `<th class="num">In ${esc(q.currency)}</th>` : ""}${fq ? `<th class="num">Customer total (${esc(fq.currency)})</th>` : ""}<th>Delivery by</th></tr></thead><tbody>
     ${q.options.map((o, i) => `<tr><td><b>${esc(o.carrier)}</b></td><td>${esc(o.service)}${o.customer_pays_usd === 0 ? ' <span class="status good">Free for customer</span>' : ""}</td>
-      ${charges ? `<td class="num">${usd(o.cost_usd)}</td>` : ""}${local ? `<td class="num">${money(o.cost_local, q.currency)}</td>` : ""}${fq ? `<td class="num">${money(fq.options[i]?.total, fq.currency)}</td>` : ""}<td style="white-space:nowrap">${dayLabel(o.estimated_delivery_by)}</td></tr>`).join("")}
+      ${charges ? `<td class="num">${usd(o.cost_usd)}</td>` : ""}${local ? `<td class="num">${money(o.cost_local, q.currency)}</td>` : ""}${fq ? `<td class="num">${money(fq.options[i]?.total, fq.currency)}</td>` : ""}<td style="white-space:nowrap">${o.estimated_delivery_by ? dayLabel(o.estimated_delivery_by) : esc(o.delivery || "—")}</td></tr>`).join("")}
     </tbody></table></div>
     ${q.unavailable.length ? `<p class="small muted" style="margin-top:8px">Not available: ${q.unavailable.map((u) => `${esc(u.service)} (${esc(u.reason)})`).join("; ")}</p>` : ""}
     ${fq ? `<p class="small muted">${esc(fq.import_tax)}</p>` : ""}

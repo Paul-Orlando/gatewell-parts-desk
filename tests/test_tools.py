@@ -86,3 +86,36 @@ def test_handoff_never_claims_it_was_sent_or_queued():
             assert claim not in text, claim
         assert h["case_status"] == "Not yet sent. Offer to open a support case."
     assert AT.handoff_decision("What does a core charge mean?")["case_status"] is None
+
+
+def test_quote_with_no_stock_anywhere_says_after_stock_arrives():
+    """IH-100009: 0 available anywhere, 120 inbound to ATL on Oct 14. Rates stay, the date doesn't."""
+    q = AT.quote_shipping([{"part_number": "IH-100009"}], "US", "TX")
+    assert q["ok"] and q["warehouse_code"] == "ATL" and q["all_in_stock"] is False
+    line = q["lines"][0]
+    assert line["stock_status"] == "Not in stock" and line["available_at_ship_from"] == 0
+    assert line["next_inbound"]["warehouse"] == "ATL" and line["next_inbound"]["quantity"] == 120
+    assert line["next_inbound"]["eta_local"].startswith("2026-10-14")
+    assert q["options"] and all(o["cost_usd"] > 0 for o in q["options"])                 # rates are kept
+    for o in q["options"]:
+        assert o["estimated_delivery_by"] is None and o["ships_on"] is None
+        assert o["delivery"].startswith("After stock arrives") and "Wed, Oct 14" in o["delivery"]
+    assert any("isn't available at any warehouse" in n for n in q["notes"])
+    f = AT.full_quote([{"part_number": "IH-100009"}], ship_to_state="TX")
+    assert f["all_in_stock"] is False and f["lines"][0]["stock_status"] == "Not in stock"
+    assert all(o["delivery_by"] is None and o["delivery"].startswith("After stock arrives") for o in f["options"])
+
+
+def test_quote_in_stock_keeps_dates():
+    q = AT.quote_shipping([{"part_number": "HL-100214"}], "US", "TX")
+    assert q["all_in_stock"] and all(ln["stock_status"] == "In stock" for ln in q["lines"])
+    assert all(o["estimated_delivery_by"] and "delivery" not in o for o in q["options"])
+
+
+def test_quote_ships_from_the_warehouse_that_has_the_item():
+    serving = db.scalar("SELECT serving_warehouse FROM states WHERE state_code = 'TX'")
+    pn, wh = db.one("""SELECT p.part_number, MIN(s.warehouse_code) wh FROM v_stock_position s JOIN parts p USING (part_id)
+                       WHERE s.qty_available > 0 AND p.hazmat = 0 AND p.status = 'Active'
+                       GROUP BY p.part_id HAVING COUNT(*) = 1 AND MIN(s.warehouse_code) <> ? LIMIT 1""", serving).values()
+    q = AT.quote_shipping([{"part_number": pn}], "US", "TX")
+    assert q["warehouse_code"] == wh and q["all_in_stock"] and q["options"][0]["estimated_delivery_by"]

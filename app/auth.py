@@ -103,6 +103,7 @@ PUBLIC_FIELDS = {
     # shipping quotes
     "ok", "message", "faq", "ship_from", "ship_to", "zone", "residential", "package_count", "total_weight_lb",
     "options", "service", "service_code", "speed", "transit_business_days", "ships_on", "estimated_delivery_by",
+    "stock_status", "available_at_ship_from", "next_inbound", "eta_local", "delivery", "all_in_stock",
     "delivery_by", "packages", "package", "billable_weight_lb", "dimensions_in", "unavailable", "reason",
     "notes", "disclaimer",
     # support cases, teams, FAQ and handoffs

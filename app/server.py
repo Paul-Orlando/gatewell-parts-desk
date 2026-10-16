@@ -158,8 +158,10 @@ def quote(body: QuoteIn, emp: Employee = Depends(current_employee)):
 @app.get("/api/orders")
 def orders(q: str | None = None, status: str | None = None, order_type: str | None = None, warehouse: str | None = None,
            customer_type: str | None = None, days: int | None = None, limit: int = 50,
+           ship_to_country: str | None = None, date_from: str | None = None, date_to: str | None = None,
            emp: Employee = Depends(current_employee)):
-    return redact(services.search_orders(emp, q, status, order_type, warehouse, customer_type, days, min(limit, 200)), emp)
+    return redact(services.search_orders(emp, q, status, order_type, warehouse, customer_type, days, min(limit, 200),
+                                         ship_to_country, date_from, date_to), emp)
 
 
 @app.get("/api/orders/{order_id}")
