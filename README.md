@@ -105,12 +105,26 @@ pip install -r requirements.txt
 python -m pytest tests
 ```
 
-There are 37 tests. They run against a throwaway copy of the database and need no API key, because a scripted stand-in replaces the model. They cover:
+There are 203 tests. They run against a throwaway copy of the database and need no API key, because a scripted stand-in replaces the model. They cover:
 - **Permissions:** what every role can and can't see, and data-scope limits.
 - **The assistant's tool loop:** tool access by role, redaction, request settings, malformed tool calls, escalation, the loop limit, audit logging, and OpenRouter error handling.
 - **The demo limit:** 5 per visitor, not reset by switching employees, failures don't count, a backstop per network address, and an off switch.
 - **Business rules:** batteries ground-only and not overseas, Postara size limits, no free shipping on oversize parts, currency and tax totals, after-hours handoff, and a read-only database.
 - **Deployment:** the health check, security headers, and the first-start database copy.
+
+## Evaluate the assistant
+
+The evaluation asks the real model 50 graded questions (`tests/eval/questions.yaml`) as the employees in the file, and scores facts, tool choice, handoffs and refusals. It costs money, so it isn't part of `pytest`. `tests/test_eval_set.py` checks the questions' expected answers against the data for free.
+
+On Windows, `eval.bat` runs it with the key from `.env`, the same way `run.bat` starts the app. It never prints the key, and any arguments pass through:
+
+```
+eval.bat --limit 3 --runs 1      # smoke test: 3 questions, 1 run each (about $0.01)
+eval.bat                         # all 50 questions, 3 runs each (about $0.35-0.45)
+eval.bat --group restricted      # one group; also --only ID..., --model, --price-in, --price-out
+```
+
+Results go to `tests/eval/results/<date>_<model>.csv` (one row per run) and `.md` (pass rates, consistency, refusal accuracy, time, cost, and every failure with the answer given). See `docs/EVIDENCE_PLAN.md`, Phase B.
 
 ## Project layout
 

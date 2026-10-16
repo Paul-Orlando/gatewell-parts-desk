@@ -51,6 +51,19 @@ REFUSAL = re.compile(
     r"|not something i can (help|do|assist)|i can only|i'm (here|only able) to help with|isn't something i can")
 
 
+# --------------------------------------------------------------------------- secrets
+_KEYLIKE = re.compile(r"(Bearer\s+)\S+|sk-or-[A-Za-z0-9_-]+|sk-[A-Za-z0-9_-]{16,}", re.I)
+
+
+def scrub(text) -> str:
+    """Remove the API key, and anything that looks like a key or an Authorization header, from text we print or save."""
+    s = str(text or "")
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key:
+        s = s.replace(key, "[key removed]")
+    return _KEYLIKE.sub(lambda m: (m.group(1) or "") + "[key removed]", s)
+
+
 # --------------------------------------------------------------------------- grading
 def norm(s) -> str:
     s = str(s or "").lower()
@@ -131,7 +144,7 @@ def ask(assistant, emp, q, audit_path):
             tools += out["tools_used"]
             handoff = out["handoff"] or handoff
     except assistant.AssistantUnavailable as ex:
-        error = str(ex)
+        error = scrub(ex)
     return dict(reply=reply, tools=tools, handoff=handoff, error=error, seconds=round(time.time() - t0, 2),
                 usage=audit_tokens(audit_path, start))
 
@@ -206,24 +219,25 @@ def main() -> int:
                              expect_refusal=q["expect_refusal"], seconds=r["seconds"], tool_calls=len(r["tools"]),
                              tools_used=" ".join(t["tool"] for t in r["tools"]), input_tokens=tin, output_tokens=tout,
                              cost_usd=round(cost, 6) if cost is not None else "",
-                             problems="; ".join(f"{k}: {v}" for k, v in checks.items() if v),
-                             flags="; ".join(flags), question=q.get("question") or " / ".join(q["turns"]), reply=r["reply"]))
+                             problems=scrub("; ".join(f"{k}: {v}" for k, v in checks.items() if v)),
+                             flags="; ".join(flags), question=q.get("question") or " / ".join(q["turns"]), reply=scrub(r["reply"])))
             print(f"{'PASS' if passed else 'FAIL'} {q['id']:7} run {run}  {r['seconds']:5.1f}s  {len(r['tools'])} tools"
                   + (f"  [{'; '.join(flags)}]" if flags else "") + (f"  {rows[-1]['problems'][:150]}" if not passed else ""))
             if r["error"] and "API key" in r["error"]:
                 print("Stopped: the API key was rejected.")
                 return 2
 
-    out = write_results(rows, model, args.runs, cost_known=p_in is not None, elapsed=time.time() - started)
-    print(f"\nResults: {out.with_suffix('.csv').relative_to(ROOT)} and {out.with_suffix('.md').relative_to(ROOT)}")
+    csv_path, md_path = write_results(rows, model, args.runs, cost_known=p_in is not None, elapsed=time.time() - started)
+    print(f"\nResults: {csv_path.relative_to(ROOT)} and {md_path.relative_to(ROOT)}")
     return 0 if all(r["passed"] for r in rows) else 1
 
 
 # --------------------------------------------------------------------------- outputs
-def write_results(rows, model, runs, cost_known, elapsed) -> Path:
+def write_results(rows, model, runs, cost_known, elapsed) -> tuple[Path, Path]:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = RESULTS_DIR / f"{date.today().isoformat()}_{re.sub(r'[^A-Za-z0-9.-]+', '-', model)}"
-    with open(out.with_suffix(".csv"), "w", newline="", encoding="utf-8") as f:
+    stem = f"{date.today().isoformat()}_{re.sub(r'[^A-Za-z0-9.-]+', '-', model)}"     # model ids contain dots ("3.1")
+    csv_path, md_path = RESULTS_DIR / f"{stem}.csv", RESULTS_DIR / f"{stem}.md"
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
         w.writeheader()
         w.writerows(rows)
@@ -265,9 +279,16 @@ def write_results(rows, model, runs, cost_known, elapsed) -> Path:
                "> " + (r["reply"] or "(no reply)").replace("\n", "\n> "), ""]
     if not failed:
         md.append("None.")
-    out.with_suffix(".md").write_text("\n".join(md) + "\n", encoding="utf-8")
-    return out
+    md_path.write_text("\n".join(md) + "\n", encoding="utf-8")
+    return csv_path, md_path
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("Stopped.")
+        sys.exit(130)
+    except Exception as ex:      # no traceback: it could include request details. Just the error, with any key removed.
+        print(f"The evaluation stopped: {type(ex).__name__}: {scrub(ex)}")
+        sys.exit(1)
