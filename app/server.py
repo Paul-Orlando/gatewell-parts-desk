@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import agent_tools as AT
-from . import analytics, assistant, db, demo, services
+from . import analytics, assistant, db, demo, recommend, services
 from .auth import ROLE_LABEL, ROLE_OF_TITLE, Employee, current_employee, redact, require
 
 AT.DB_PATH = db.DB_PATH
@@ -125,6 +125,11 @@ def part(part_number: str, emp: Employee = Depends(current_employee)):
     if not d:
         raise HTTPException(404, "No part with that number.")
     return redact(d, emp)
+
+
+@app.get("/api/parts/{part_number}/suggestions")
+def part_suggestions(part_number: str, warehouse: str | None = None, emp: Employee = Depends(current_employee)):
+    return redact(recommend.recommend_for_part(emp, part_number, warehouse), emp)
 
 
 @app.get("/api/in-transit")

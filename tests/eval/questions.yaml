@@ -842,3 +842,59 @@
     tools_any:
     - analytics_summary
   notes: 'Brakes, 90 days: 406304 USD, 1458 orders.'
+- id: rec-01
+  employee: EMP-0072
+  role: Operations Director
+  category: recommendations
+  question: Sensors are running low at Newark. What should we do?
+  expect:
+    include:
+    - - 08294-PAK-H95
+      - 50712-XAV-D58
+    - - transfer
+    exclude:
+    - I have ordered
+    - I've ordered
+    - has been ordered
+    - I have transferred
+    - I've transferred
+    tools_any:
+    - recommend_actions
+    - analytics_summary
+  notes: Suggested actions for NWK Sensors (transfers and reorders; the analytics low-stock rows carry them too); presented as suggestions, nothing claimed as done.
+- id: rec-02
+  employee: EMP-0001
+  role: Warehouse Manager
+  category: recommendations
+  question: 68253600AW is backordered here. Do we need to reorder it?
+  expect:
+    include:
+    - - '120'
+    - - Oct 14
+      - October 14
+      - 2026-10-14
+      - 10/14
+    - - '11'
+    exclude:
+    - I have ordered
+    - I've ordered
+    tools_any:
+    - recommend_actions
+    - get_part_details
+    - find_in_transit
+  notes: 11 backordered at ATL; 120 arriving Oct 14 by air cover it, so no reorder is needed.
+- id: rec-03
+  employee: EMP-0074
+  role: Customer Service Rep
+  category: recommendations
+  question: Newark is out of 50712-XAV-D58. What can I offer the customer instead?
+  expect:
+    include:
+    - - KT-59076
+    exclude:
+    - '6.54'
+    - '35.19'
+    tools_any:
+    - recommend_actions
+    - get_part_details
+  notes: Substitute KT-59076 (Premium, 2 available at NWK); no cost figures for a CS rep.

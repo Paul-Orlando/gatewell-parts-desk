@@ -145,7 +145,7 @@ def test_every_warehouse_parameter_is_an_enum_of_the_real_codes():
     codes = [r["warehouse_code"] for r in db.rows("SELECT warehouse_code FROM warehouses ORDER BY warehouse_code")]
     with_wh = {t["name"]: t["schema"]["properties"]["warehouse"] for t in assistant.TOOLS
                if "warehouse" in t["schema"].get("properties", {})}
-    assert set(with_wh) == {"search_inventory", "find_in_transit", "search_orders", "analytics_summary"}
+    assert set(with_wh) == {"search_inventory", "find_in_transit", "search_orders", "analytics_summary", "recommend_actions"}
     assert all(p["enum"] == codes for p in with_wh.values())
 
 

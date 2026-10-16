@@ -257,6 +257,7 @@ async function partDrawer(pn) {
         <td>${stockStatus(s)}</td><td class="num">${n(s.qty_available)}</td><td class="num">${n(s.qty_reserved)}</td><td class="num">${n(s.qty_damaged)}</td><td class="num">${n(s.qty_missing)}</td>
         <td class="num">${n(s.qty_in_transit)}</td><td class="num">${n(s.qty_backordered)}</td><td class="num">${n(s.reorder_point)}</td></tr>`).join("") || '<tr><td colspan="10" class="empty">Not stocked anywhere.</td></tr>'}
       </tbody></table></div></section>
+    <section id="sugg"><h3>Suggested actions</h3><p class="empty">Loading…</p></section>
     ${d.in_transit.length ? `<section><h3>On the way</h3><div class="table-wrap"><table><thead><tr><th>Shipment</th><th>From</th><th>To</th><th>Status</th><th>ETA (local)</th><th class="num">Qty</th></tr></thead><tbody>
       ${d.in_transit.map((t) => `<tr><td>${esc(t.shipment_id)}<div class="muted small">${esc(t.carrier)}, ${esc(t.mode)}</div></td><td>${esc(t.origin_name)}<div class="muted small">${esc(t.origin_country)}</div></td><td>${esc(t.destination_warehouse)}</td>
         <td><span class="status ${t.status === "In Transit" ? "info" : "warn"}">${esc(t.status)}</span>${t.exception_note ? `<div class="small muted">${esc(t.exception_note)}</div>` : ""}</td><td class="small">${esc((t.eta_destination_local || "").replace("T", " "))}</td><td class="num">${n(t.quantity)}</td></tr>`).join("")}
@@ -290,6 +291,36 @@ async function partDrawer(pn) {
     catch (err) { $("#quote-out").innerHTML = `<p class="empty">${esc(err.message)}</p>`; }
   };
   $("#drawer-body").onclick = (e) => { const tr = e.target.closest("tr[data-pn]"); if (tr) partDrawer(tr.dataset.pn); };
+  suggestions(p.part_number);
+}
+
+/* Suggested actions for one part at one warehouse: read-only suggestions, never an action. */
+async function suggestions(pn, wh = "") {
+  const box = $("#sugg");
+  if (!box) return;
+  let r;
+  try { r = await api(`/api/parts/${encodeURIComponent(pn)}/suggestions?${qs({ warehouse: wh })}`); }
+  catch (e) { box.innerHTML = `<h3>Suggested actions</h3><p class="empty">${esc(e.message)}</p>`; return; }
+  if (!$("#sugg") || $("#sugg") !== box) return;                       // the drawer moved on to another part
+  const mine = S.emp.scope === "Warehouse" ? [] : S.meta.warehouses.filter((w) => S.emp.scope === "Company" || w.region === S.emp.region);
+  const pick = mine.length > 1 ? `<form class="filters" style="margin:0 0 10px" onsubmit="return false"><label class="field"><span>For warehouse</span>
+      <select id="sugg-wh">${mine.map((w) => opt(w.warehouse_code, `${w.warehouse_code} ${w.city}, ${w.state}`, r.for_warehouse)).join("")}</select></label></form>` : "";
+  const cost = (r.transfer_options || []).some((t) => has(t, "estimated_cost_usd"));
+  const ro = r.reorder;
+  box.innerHTML = `<h3>Suggested actions</h3>${pick}
+    <p style="margin:0 0 10px">${r.need_now ? '<span class="status warn">&#9650; Needs cover</span>' : '<span class="status good">&#10003; No action needed</span>'} ${esc(r.summary)}</p>
+    ${r.transfer_options && r.transfer_options.length ? `<h4 class="small">Transfer from another warehouse</h4><div class="table-wrap"><table><thead><tr><th>From</th><th class="num">Can spare</th><th class="num">Suggested</th><th>Ground service</th><th class="num">Business days</th>${cost ? '<th class="num">Est. shipping</th>' : ""}</tr></thead><tbody>
+      ${r.transfer_options.map((t) => `<tr><td><b>${esc(t.warehouse_code)}</b> <span class="muted small">${esc(t.warehouse_city)}</span></td><td class="num">${n(t.spare_qty)}</td><td class="num">${n(t.suggested_qty)}</td><td class="small">${esc(t.service || "—")}</td><td class="num">${esc(t.transit_days || "—")}</td>${cost ? `<td class="num">${usd(t.estimated_cost_usd)}</td>` : ""}</tr>`).join("")}
+      </tbody></table></div>` : ""}
+    ${ro ? `<h4 class="small">Reorder</h4>${facts([["Suggested", ro.covered_by_inbound ? '<span class="status info">&#8595; Covered by inbound</span>' : `${n(ro.suggested_qty)} units`],
+      ["Supplier", `${esc(ro.supplier_name)}, ${esc(ro.country)}`], ["Typical lead time", `About ${n(ro.lead_time_days)} days`],
+      ...(ro.next_eta_local ? [["Next inbound", `${n(ro.quantity)} on ${esc(ro.next_eta_local.slice(0, 10))} (${esc(ro.mode)})`]] : [])])}` : ""}
+    ${r.substitutes && r.substitutes.length ? `<h4 class="small">Substitutes in stock at ${esc(r.for_warehouse)}</h4><div class="table-wrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Quality</th><th class="num">List price</th><th class="num">Available</th></tr></thead><tbody>
+      ${r.substitutes.map((x) => `<tr class="clickable" data-pn="${esc(x.part_number)}"><td class="pn">${esc(x.part_number)}</td><td>${esc(x.brand)}</td><td>${esc(x.quality_tier)}</td><td class="num">${usd(x.list_price_usd)}</td><td class="num">${n(x.qty_available)}</td></tr>`).join("")}
+      </tbody></table></div>` : ""}
+    <p class="lock" style="margin:10px 0 0">${esc(r.label)}</p>`;
+  const sel = $("#sugg-wh");
+  if (sel) sel.onchange = () => { box.innerHTML = '<h3>Suggested actions</h3><p class="empty">Loading…</p>'; suggestions(pn, sel.value); };
 }
 
 function renderQuote(q) {
@@ -405,7 +436,7 @@ async function viewCases() {
 }
 
 /* ------------------------------------------------------------------ assistant */
-const TOOL_LABEL = { search_inventory: "inventory search", get_part_details: "part details", find_in_transit: "inbound shipments", search_orders: "order search",
+const TOOL_LABEL = { search_inventory: "inventory search", recommend_actions: "suggested actions", get_part_details: "part details", find_in_transit: "inbound shipments", search_orders: "order search",
   get_order: "order details", get_part_price: "part price", quote_shipping: "shipping rates", full_quote: "customer total", list_support_cases: "support cases",
   analytics_summary: "analytics", search_faq: "FAQ", contact_team: "team contacts", escalate_to_person: "handoff to a person", propose_support_case: "new support case" };
 
@@ -614,10 +645,10 @@ async function viewAnalytics() {
       </div>
       ${!split ? `<p class="lock" style="margin:0 0 16px">${esc(d.note)}</p>` : ""}
       ${panels.map((x, i) => (i % 2 ? "" : `<div class="grid2">${x}${panels[i + 1] || ""}</div>`)).join("")}
-      <div class="panel" style="margin-bottom:16px"><h3>Low stock to reorder</h3><p class="sub">Parts at or below their reorder point, backorders first${only}. Select a part for its details.</p>
-        <div class="table-wrap"><table><thead><tr><th>Part</th><th>Warehouse</th><th class="num">Available</th><th class="num">Reorder at</th><th class="num">In transit</th><th class="num">Backordered</th><th class="num">Days of cover</th></tr></thead><tbody>
+      <div class="panel" style="margin-bottom:16px"><h3>Low stock to reorder</h3><p class="sub">Parts at or below their reorder point, backorders first${only}. Suggested actions are suggestions only; select a part for details.</p>
+        <div class="table-wrap"><table><thead><tr><th>Part</th><th>Warehouse</th><th class="num">Available</th><th class="num">Reorder at</th><th class="num">In transit</th><th class="num">Backordered</th><th class="num">Days of cover</th><th>Suggested action</th></tr></thead><tbody>
         ${d.low_stock.map((r) => `<tr class="clickable" data-pn="${esc(r.part_number)}" tabindex="0"><td><span class="pn">${esc(r.part_number)}</span> <span class="small">${esc(r.part_name)}</span><div class="muted small">${esc(r.fits_summary)}</div></td><td>${esc(r.warehouse_code)}</td>
-          <td class="num">${n(r.qty_available)}</td><td class="num">${n(r.reorder_point)}</td><td class="num">${n(r.qty_in_transit)}</td><td class="num">${r.qty_backordered ? `<span class="status warn">${n(r.qty_backordered)}</span>` : "0"}</td><td class="num">${n(r.days_of_cover, 1)}</td></tr>`).join("") || '<tr><td colspan="7" class="empty">Nothing below its reorder point.</td></tr>'}
+          <td class="num">${n(r.qty_available)}</td><td class="num">${n(r.reorder_point)}</td><td class="num">${n(r.qty_in_transit)}</td><td class="num">${r.qty_backordered ? `<span class="status warn">${n(r.qty_backordered)}</span>` : "0"}</td><td class="num">${n(r.days_of_cover, 1)}</td><td class="small">${esc(r.suggestion || "—")}</td></tr>`).join("") || '<tr><td colspan="8" class="empty">Nothing below its reorder point.</td></tr>'}
         </tbody></table></div></div>
       <div class="grid2">
         <div class="panel"><h3>Top parts by revenue</h3><p class="sub">${esc(period)}. Select a part for its details.</p><div class="table-wrap"><table><thead><tr><th>Part</th><th class="num">Units</th><th class="num">Revenue</th></tr></thead><tbody>

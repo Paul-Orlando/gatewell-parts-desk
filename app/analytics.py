@@ -28,7 +28,7 @@ SECTIONS = {
     "missing_by_warehouse_group": "Missing stock per warehouse and category (units and value at cost), largest first. "
                                   "Use this for questions like 'which warehouse has the most missing stock, and in which "
                                   "categories'. For overall totals use kpis (always included)",
-    "low_stock": "Top 15 parts at or below reorder point, with days of cover",
+    "low_stock": "Top 15 parts at or below reorder point, with days of cover and a short suggested action",
     "stock_aging": "Stock by days since last activity (0-30, 31-90, 91-180, 180+)",
     "sales_by_month": "Every month: domestic and international revenue, orders, carrier cost, shipping charged",
     "sales_by_quarter": "Every quarter of every year (e.g. 2025-Q2, 2026-Q2): orders and revenue, already totalled",
@@ -105,6 +105,15 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
                            start, *soa, *pca)
     kpis = {**(inv or {}), **(sales or {}), "units_sold": units_sold or 0}
 
+    low_stock = db.rows(f"""SELECT s.part_number, s.part_name, s.fits_summary, s.warehouse_code, s.qty_available, s.reorder_point,
+                                   s.qty_in_transit, s.qty_backordered, s.avg_daily_demand,
+                                   ROUND(s.qty_available / NULLIF(s.avg_daily_demand, 0), 1) days_of_cover
+                            FROM v_stock_position s WHERE s.needs_reorder = 1 {si}
+                            ORDER BY s.qty_backordered DESC, days_of_cover ASC, s.avg_daily_demand DESC LIMIT 15""", *sia)
+    from .recommend import recommend_for_part         # each row gets a short suggested action (read-only)
+    for r in low_stock:
+        r["suggestion"] = recommend_for_part(emp, r["part_number"], r["warehouse_code"])["suggestion"]
+
     return dict(
         period=period, warehouse=warehouse or "All in your view", category=category or "All categories",
         note=CATEGORY_NOTE if category else None, scope=emp.scope_label(), scope_note=note,
@@ -124,11 +133,7 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
                                        SUM(qty_on_hand) units, ROUND(SUM(stock_value_usd)) stock_value_usd
                                 FROM v_stock_position s WHERE qty_on_hand > 0 {si} GROUP BY 1
                                 ORDER BY MIN(days_since_last_activity)""", *sia),
-        low_stock=db.rows(f"""SELECT s.part_number, s.part_name, s.fits_summary, s.warehouse_code, s.qty_available, s.reorder_point,
-                                     s.qty_in_transit, s.qty_backordered, s.avg_daily_demand,
-                                     ROUND(s.qty_available / NULLIF(s.avg_daily_demand, 0), 1) days_of_cover
-                              FROM v_stock_position s WHERE s.needs_reorder = 1 {si}
-                              ORDER BY s.qty_backordered DESC, days_of_cover ASC, s.avg_daily_demand DESC LIMIT 15""", *sia),
+        low_stock=low_stock,
         missing_by_group=db.rows(f"""SELECT s.category_group label, SUM(s.qty_missing) units,
                                             ROUND(SUM(s.qty_missing * i.unit_cost_usd)) missing_value_usd
                                      FROM v_stock_position s JOIN inventory i USING (part_id, warehouse_code)

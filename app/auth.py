@@ -53,6 +53,8 @@ PERMISSIONS = {
 COST_FIELDS = {"unit_cost_usd", "unit_cost_local", "stock_value_usd", "carrier_cost_usd", "shipping_margin_usd",
                "po_value_usd", "po_value_local", "fx_gain_loss_usd", "variance_value_usd", "missing_value_usd",
                "inventory_value_usd",
+               # shipping estimate for a suggested transfer (recommend.py)
+               "estimated_cost_usd",
                # figures worked out from our costs (analytics)
                "avg_cost_pct_of_list", "avg_carrier_cost_usd", "cost_pct_of_revenue", "shipping_cost_pct_of_revenue"}
 MONEY_FIELDS = {"unit_price_usd", "unit_price_local", "line_total_usd", "line_total_local", "order_total_usd",
@@ -119,6 +121,10 @@ PUBLIC_FIELDS = {
     "last_order_date", "sales_by_group", "revenue_by_region",
     "revenue_by_country", "top_parts", "price_by_group", "oem_avg_price_usd", "premium_avg_price_usd",
     "value_avg_price_usd", "shipping_by_carrier", "shipping_by_service",
+    # suggested actions (recommend.py); the transfer shipping estimate is a cost field
+    "for_warehouse", "need_now", "transfer_options", "spare_qty", "suggested_qty", "transit_days", "reorder",
+    "covered_by_inbound", "lead_time_days", "next_eta_local", "substitutes", "summary", "suggestion",
+    "recommendations",
     # result framing
     "count", "total", "results", "_shortened",
 }

@@ -176,7 +176,9 @@ def _all_field_names(client, ids):
                         ("/api/parts/KV8Z-9402-Y", None), (f"/api/parts/{old}", None), ("/api/in-transit", None),
                         ("/api/orders", {"limit": 5}), (f"/api/orders/{intl}", None), (f"/api/orders/{with_case}", None),
                         ("/api/cases", None), ("/api/analytics", {"period": "all"}),
-                        ("/api/analytics", {"period": "all", "category": "Brakes"})]:
+                        ("/api/analytics", {"period": "all", "category": "Brakes"}),
+                        ("/api/parts/68253600AW/suggestions", {"warehouse": "ATL"}),
+                        ("/api/parts/08294-PAK-H95/suggestions", {"warehouse": "NWK"})]:
         r = client.get(url, params=params, headers=h)
         assert r.status_code == 200, url
         walk(r.json())
@@ -195,6 +197,8 @@ def _all_field_names(client, ids):
                          (od, "list_support_cases", {"status": "active", "limit": 3}), (od, "analytics_summary", {"period": "all"}),
                          (od, "search_faq", {"question": "return policy"}), (od, "contact_team", {"department_id": "RET"}),
                          (od, "escalate_to_person", {"question": "refund 400", "refund_amount_usd": 400}),
+                         (od, "recommend_actions", {"part_number": "50712-XAV-D58", "warehouse": "NWK"}),
+                         (od, "recommend_actions", {"warehouse": "NWK"}),
                          (sup, "propose_support_case", {"customer_id": cust, "department_id": "RET", "contact_reason": "x"})]:
         text, is_err = assistant.run_tool(emp, name, a)
         assert not is_err, (name, text[:200])

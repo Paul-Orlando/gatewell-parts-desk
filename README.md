@@ -118,6 +118,7 @@ gatewell_app/
     auth.py          roles, permissions, data scope, field redaction
     services.py      inventory, orders, cases queries shared by screens and assistant
     analytics.py     analytics queries
+    recommend.py     suggested actions (transfers, reorders, substitutes); read-only
     assistant.py     model tool loop (OpenRouter), system prompt, tools per role, audit log
     agent_tools.py   pricing, shipping rate engine, FAQ, live-person handoff
     demo.py          demo limit: 5 assistant questions per visitor

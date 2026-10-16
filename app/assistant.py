@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import agent_tools as AT
-from . import analytics, db, services
+from . import analytics, db, recommend, services
 from .auth import ROLE_LABEL, Employee, redact
 
 AT.DB_PATH = db.DB_PATH
@@ -141,6 +141,18 @@ TOOLS = [
                                                   "sections": {"type": "array", "items": {"type": "string", "enum": list(analytics.SECTIONS)},
                                                                "description": "Sections to return, e.g. ['inventory_by_warehouse', 'missing_by_group']"}}},
          run=lambda e, a: _analytics(e, a)),
+    dict(name="recommend_actions", roles="all",
+         description="Suggested actions when stock is low, out or backordered: transfers from other warehouses (only "
+                     "stock above their reorder point, with ground transit days), a reorder from the supplier (or that "
+                     "inbound stock already covers it), and substitute parts in stock. With part_number: that part at "
+                     "one warehouse (the employee's own, or the one that needs it most). Without: the top low-stock and "
+                     "backordered parts, each with a short suggestion. Suggestions only; nothing is ordered or moved.",
+         schema={"type": "object", "properties": {
+             "part_number": {"type": "string"},
+             "warehouse": {"type": "string", "enum": WAREHOUSE_CODES, "description": "Warehouse code (see the list in your instructions)"},
+             "category": {"type": "string", "enum": services.category_groups(), "description": "Optional category group (list only)"}}},
+         run=lambda e, a: (recommend.recommend_for_part(e, a["part_number"], a.get("warehouse")) if a.get("part_number")
+                           else recommend.recommend_for_warehouse(e, a.get("warehouse"), a.get("category")))),
     dict(name="search_faq", roles="all",
          description="Company FAQ answers (policies on returns, cores, shipping, international, currency, warranty) with links.",
          schema={"type": "object", "properties": {"question": {"type": "string"}}, "required": ["question"]},
@@ -282,6 +294,8 @@ How to work
 - If a question is ambiguous, ask one short follow-up instead of guessing (which engine, warehouse, customer or year).
   Confirm fitment by year, make, model and engine; brakes, steering and airbags are safety parts.
 - When several parts match (for example OEM, Premium and Value), list the options before quoting one, or ask which one.
+- When stock is low, out or backordered, get the suggested actions and present them as suggestions for a person to
+  decide on (transfer, reorder, substitute). Never say an action has been taken or ordered.
 - Periods: if a period has no year (for example "Q2", "March") and more than one year of data could match, ask which
   year, or show each matching year side by side. Always say which dates a figure covers.
 - Totals: use the total fields the tools give (total, totals, KPIs); never add up rounded rows. When 'count' is less
