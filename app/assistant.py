@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import agent_tools as AT
-from . import analytics, db, recommend, services
+from . import analytics, dates, db, recommend, services
 from .auth import ROLE_LABEL, Employee, redact
 
 AT.DB_PATH = db.DB_PATH
@@ -190,10 +190,13 @@ def _analytics(emp, a):
         raise services.BadInput(f"Unknown analytics section {', '.join(map(repr, unknown))}. Use any of: "
                                 + ", ".join(analytics.SECTIONS) + ".")
     d = analytics.dashboard(emp, a.get("period", "90"), a.get("warehouse"), a.get("category"))
-    meta = ("period", "warehouse", "category", "note", "scope", "scope_note", "as_of")
+    meta = ("period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "stock_as_of", "period_covers")
     if secs and any(s.startswith("missing_") for s in secs):
         secs = list(secs) + ["kpis"]          # the exact missing totals, so rounded rows are never added up
-    return {k: v for k, v in d.items() if not secs or k in secs or k in meta}
+    out = {k: v for k, v in d.items() if not secs or k in secs or k in meta}
+    # one note per returned section: stock counts are point in time, sales figures cover the period
+    out["section_notes"] = {k: v for k, v in d["section_notes"].items() if k in out}
+    return out
 
 
 # --------------------------------------------------------------------------- support cases: prepare, then confirm
@@ -254,6 +257,10 @@ def _escalate(emp, a):
     r = AT.handoff_decision(a["question"], bot_confident=False, refund_amount_usd=a.get("refund_amount_usd") or 0,
                             customer_timezone=tz)
     r["reason_given"] = a.get("reason")
+    r["next_step"] = ("Not yet sent. Offer to open a support case." if emp.perms["create_cases"] else
+                      "Not yet sent. The employee can contact the team directly.")
+    if not emp.perms["create_cases"]:
+        r["case_status"] = r["next_step"]          # this role can't prepare a case, so don't offer one
     return r
 
 
@@ -305,6 +312,9 @@ How to work
   decide on (transfer, reorder, substitute). Never say an action has been taken or ordered.
 - Periods: if a period has no year (for example "Q2", "March") and more than one year of data could match, ask which
   year, or show each matching year side by side. Always say which dates a figure covers.
+- Stock counts (on hand, available, in transit, missing, low stock) are point in time: label them "as of [date]", never
+  with the sales period. Use each analytics section's note to say what its figures cover.
+- Write dates the way the *_display values give them (for example "Tue, Oct 13"), never as 2026-10-13.
 - Totals: use the total fields the tools give (total, totals, KPIs); never add up rounded rows. When 'count' is less
   than 'total', or a result has '_shortened', the rows are only a sample: say so, and never add up, average or
   extrapolate them. If no tool gives the figure asked for, say you can't get it.
@@ -335,8 +345,8 @@ Examples of good answers (the shape only: take every number from your own lookup
    destination is known, quote it for a guest customer there; don't ask for a customer ID first.
 3. "Total in [currency] with VAT for customer [ID]": get one full quote for that customer and give the cheapest
    option's parts, shipping, tax and total, with the tax wording exactly as the quote gives it.
-4. "A customer wants a $400 refund and wants to talk to someone": over $250 needs a person. Hand off and give the
-   team, phone, email, whether they're open now (or when they open) and the FAQ link.{example_offer}
+4. "A customer wants a $400 refund and wants to talk to someone": over $250 needs a person. Say "This needs the
+   [team] team" and give their phone, email, whether they're open now (or when they open) and the FAQ link.{example_offer}
 
 Access rules (enforced by the system - do not try to work around them)
 - This employee cannot see: {', '.join(hidden) if hidden else 'no restrictions'}. If they ask for it, say their role doesn't
@@ -352,6 +362,10 @@ When to bring in a person
   (refund or credit over $250, complaint, policy exception), call escalate_to_person and give the team, phone, email, whether
   they're open now (or when they open), and the most relevant FAQ link. Always offer the FAQ page
   (https://www.gatewellautoparts.example/faq) as an option.{case_offer}
+- A handoff sends nothing. Say "This needs the [team] team" and give their contacts. Never say you escalated, passed on,
+  sent, forwarded, queued or connected anything, and never say the team will follow up.
+- A support case exists only after the employee clicks Create case and the app confirms it. Until then say the case is
+  prepared, not opened, and never give it a case number or status.
 
 Stay on Gatewell business (parts, inventory, orders, shipping, customers, policies). Politely decline anything else."""
 
@@ -458,13 +472,29 @@ def _dig(o, path):
     return o
 
 
+def _with_display_dates(o):
+    """Add "<key>_display" ("Tue, Oct 13") next to every ISO date or local date-time, so replies use the app's date
+    style. Runs after redact(), so a display value only exists where its source field is visible to the role."""
+    if isinstance(o, dict):
+        out = {}
+        for k, v in o.items():
+            out[k] = _with_display_dates(v)
+            shown = dates.display(v)
+            if shown and f"{k}_display" not in o:
+                out[f"{k}_display"] = shown
+        return out
+    if isinstance(o, list):
+        return [_with_display_dates(v) for v in o]
+    return o
+
+
 def run_tool(emp: Employee, name: str, args: dict) -> tuple[str, bool]:
     """Run one tool for this employee. Returns (json text, is_error)."""
     t = TOOL_BY_NAME.get(name)
     if not t or not (t["roles"] == "all" or emp.role in t["roles"]):
         return json.dumps({"error": f"Tool {name} isn't available for this role."}), True
     try:
-        return _fit(redact(t["run"](emp, dict(args or {})), emp)), False
+        return _fit(_with_display_dates(redact(t["run"](emp, dict(args or {})), emp))), False
     except Exception as ex:                      # report back to the model rather than failing the chat
         return json.dumps({"error": str(ex)}), True
 

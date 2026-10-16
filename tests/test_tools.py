@@ -72,3 +72,17 @@ def test_database_is_read_only_for_queries():
     con = db.read_conn()
     with pytest.raises(sqlite3.OperationalError):
         con.execute("DELETE FROM inventory")
+
+
+def test_handoff_never_claims_it_was_sent_or_queued():
+    """A handoff saves nothing: it names the team and says nothing has been sent, open or closed."""
+    from datetime import datetime, timezone
+    for now in (datetime(2026, 10, 13, 15, 0, tzinfo=timezone.utc),       # Tuesday 10 AM Central: open
+                datetime(2026, 10, 11, 21, 0, tzinfo=timezone.utc)):      # Sunday: closed
+        h = AT.handoff_decision("customer wants a $400 refund", refund_amount_usd=400, now=now)
+        text = h["message_to_customer"]
+        assert h["handoff"] and text.startswith("This needs the Returns & Cores team.") and "Not yet sent" in text
+        for claim in ("passed your question", "I'll connect you", "escalated", "Queued", "follow up"):
+            assert claim not in text, claim
+        assert h["case_status"] == "Not yet sent. Offer to open a support case."
+    assert AT.handoff_decision("What does a core charge mean?")["case_status"] is None

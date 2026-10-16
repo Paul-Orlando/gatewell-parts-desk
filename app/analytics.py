@@ -5,9 +5,9 @@ Every query is limited to the employee's data scope (their warehouse, region, or
 company). Cost-based fields (stock value, carrier cost, margins) are removed afterwards by
 auth.redact() for roles that can't see costs.
 """
-from datetime import timedelta
+from datetime import date, timedelta
 
-from . import db
+from . import dates, db
 from .auth import Employee, scope_sql
 from .services import _choice, category_groups, warehouse_code
 
@@ -20,16 +20,16 @@ PERIODS = {"30": 30, "90": 90, "365": 365, "all": None}
 SECTIONS = {
     "kpis": "Headline totals: units on hand, available, in transit, missing (units and value at cost), SKUs to reorder, "
             "stock value, orders, revenue, shipping cost, FX gain or loss",
-    "inventory_by_warehouse": "Per warehouse: units on hand, in transit, missing units and missing value at cost, "
-                              "SKUs to reorder, stock value. Use this to compare warehouses",
-    "inventory_by_group": "Per category: units on hand, available, stock value",
-    "missing_by_group": "Missing stock per category: units and value at cost. Rows are rounded; for the overall "
+    "inventory_by_warehouse": "Per warehouse (point in time): units on hand, in transit, missing units and missing "
+                              "value at cost, SKUs to reorder, stock value. Use this to compare warehouses",
+    "inventory_by_group": "Per category (point in time): units on hand, available, stock value",
+    "missing_by_group": "Missing stock per category (point in time): units and value at cost. Rows are rounded; for the overall "
                         "total use units_missing and missing_value_usd in kpis (always included), never the sum of rows",
-    "missing_by_warehouse_group": "Missing stock per warehouse and category (units and value at cost), largest first. "
+    "missing_by_warehouse_group": "Missing stock per warehouse and category (point in time; units and value at cost), largest first. "
                                   "Use this for questions like 'which warehouse has the most missing stock, and in which "
                                   "categories'. For overall totals use kpis (always included)",
-    "low_stock": "Top 15 parts at or below reorder point, with days of cover and a short suggested action",
-    "stock_aging": "Stock by days since last activity (0-30, 31-90, 91-180, 180+)",
+    "low_stock": "Top 15 parts at or below reorder point (point in time), with days of cover and a short suggested action",
+    "stock_aging": "Stock by days since last activity, point in time (0-30, 31-90, 91-180, 180+)",
     "sales_by_month": "Every month: domestic and international revenue, orders, carrier cost, shipping charged",
     "sales_by_quarter": "Every quarter of every year (e.g. 2025-Q2, 2026-Q2): orders and revenue, already totalled",
     "revenue_by_region": "Orders and revenue by customer region (selected period)",
@@ -40,6 +40,25 @@ SECTIONS = {
     "shipping_by_carrier": "Orders, average carrier cost and average charged per carrier (selected period)",
     "shipping_by_service": "Orders and average cost and charge per shipping service (selected period)",
 }
+
+
+POINT_IN_TIME = ("inventory_by_warehouse", "inventory_by_group", "missing_by_group", "missing_by_warehouse_group",
+                 "low_stock", "stock_aging")
+WHOLE_HISTORY = ("sales_by_month", "sales_by_quarter")
+
+
+def section_notes(stock_as_of: str, period_covers: str) -> dict:
+    """What each section's figures cover, so stock counts are never described with the sales period."""
+    notes = {s: f"Point-in-time count as of {stock_as_of}. Not tied to the sales period; never describe it as "
+                "'last N days'." for s in POINT_IN_TIME}
+    notes.update({s: "Whole history, by " + ("month." if s == "sales_by_month" else "quarter.") for s in WHOLE_HISTORY})
+    notes["price_by_group"] = f"Current list prices as of {stock_as_of}."
+    notes["kpis"] = (f"Stock figures (units on hand, available, in transit, missing, backordered, SKUs, stock value, "
+                     f"missing value) are as of {stock_as_of}. Orders, revenue, units sold, shipping and FX cover "
+                     f"{period_covers}.")
+    for s in SECTIONS:
+        notes.setdefault(s, f"Covers {period_covers}.")
+    return notes
 
 
 def _scope(emp: Employee, warehouse: str | None, column: str):
@@ -105,6 +124,14 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
                            start, *soa, *pca)
     kpis = {**(inv or {}), **(sales or {}), "units_sold": units_sold or 0}
 
+    stock_as_of = f"{dates.day(end.date(), year=True)}, {end:%H:%M} UTC"
+    if days:
+        first = (end - timedelta(days=days)).date()
+        period_covers = f"{first:%b} {first.day} – {end:%b} {end.day}, {end.year} (last {days} days)"
+    else:
+        first = db.scalar("SELECT MIN(ordered_at_utc) FROM orders")[:7]
+        period_covers = f"all history ({date.fromisoformat(first + '-01'):%b %Y} – {end:%b %Y})"
+
     low_stock = db.rows(f"""SELECT s.part_number, s.part_name, s.fits_summary, s.warehouse_code, s.qty_available, s.reorder_point,
                                    s.qty_in_transit, s.qty_backordered, s.avg_daily_demand,
                                    ROUND(s.qty_available / NULLIF(s.avg_daily_demand, 0), 1) days_of_cover
@@ -117,7 +144,8 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
     return dict(
         period=period, warehouse=warehouse or "All in your view", category=category or "All categories",
         note=CATEGORY_NOTE if category else None, scope=emp.scope_label(), scope_note=note,
-        as_of=end.strftime("%Y-%m-%d %H:%M UTC"),
+        as_of=end.strftime("%Y-%m-%d %H:%M UTC"), stock_as_of=stock_as_of, period_covers=period_covers,
+        section_notes=section_notes(stock_as_of, period_covers),
         kpis=kpis,
         inventory_by_group=db.rows(f"""SELECT s.category_group label, SUM(s.qty_on_hand) units, SUM(s.qty_available) available,
                                               ROUND(SUM(s.stock_value_usd)) stock_value_usd

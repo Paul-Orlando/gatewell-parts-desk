@@ -10,7 +10,7 @@ Warehouse roles get transfers and substitutes, not reorders (purchasing isn't th
 from datetime import date
 
 from . import agent_tools as AT
-from . import db
+from . import dates, db
 from .auth import Employee
 from .services import BadInput, warehouse_code
 
@@ -137,8 +137,7 @@ def recommend_for_part(emp: Employee, part_number: str, warehouse: str | None = 
 
 def _day(iso: str) -> str:
     """"2026-10-14..." -> "Wed, Oct 14", the date style used across the app."""
-    d = date.fromisoformat(iso[:10])
-    return f"{d:%a}, {d:%b} {d.day}"
+    return dates.day(date.fromisoformat(iso[:10]))
 
 
 def _words(emp: Employee, r: dict, t: dict, nxt: dict | None, covered: bool) -> tuple[str, str]:

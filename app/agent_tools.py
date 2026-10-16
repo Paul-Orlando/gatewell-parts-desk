@@ -418,23 +418,20 @@ def handoff_decision(user_message, bot_confident=True, failed_attempts=0, refund
     interpreter = customer_language not in contact["languages"]
     faq_lines = "".join(f"\n- {m['question']} {m['url']}" for m in faq)
     if handoff:
-        if contact["open_now"]:
-            text = (f"I'll connect you with our {contact['department']} team now. "
-                    f"You can also reach them at {contact['phone']} or {contact['email']}.")
-        else:
-            text = (f"Our {contact['department']} team is closed right now. They open {contact['next_open']}. "
-                    f"I've passed your question to them so they can follow up, or you can call {contact['phone']} "
-                    f"or email {contact['email']} when they're open.")
-        if interpreter: text += f" They'll use an interpreter line for {customer_language}."
-        if faq: text += f"\n\nWhile you wait, these FAQ answers may help:{faq_lines}"
+        # A handoff sends and saves nothing: say who is needed and how to reach them, never that it was passed on.
+        when = "They're open now" if contact["open_now"] else f"They're closed and open {contact['next_open']}"
+        text = (f"This needs the {contact['department']} team. Not yet sent: nothing has been passed to them. "
+                f"{when}: {contact['phone']}, {contact['email']}.")
+        if interpreter: text += f" They use an interpreter line for {customer_language}."
+        if faq: text += f"\n\nThese FAQ answers may help:{faq_lines}"
         text += f"\n\nFull FAQ: {FAQ_PAGE}"
     else:
         text = (f"These FAQ answers may help:{faq_lines}\n\nFull FAQ: {FAQ_PAGE}\n"
-                f"If that doesn't answer it, just say so and I'll connect you with a person.") if faq else \
-               f"You can browse our FAQ at {FAQ_PAGE}, or ask me to connect you with a person."
+                f"If that doesn't answer it, just say so and I'll give you the right team's contact details.") if faq else \
+               f"You can browse our FAQ at {FAQ_PAGE}, or ask me for the right team's contact details."
     return dict(handoff=handoff, reasons=reasons, department_id=contact["department_id"], contact=contact,
                 faq_suggestions=faq, interpreter_needed=interpreter, message_to_customer=text,
-                case_status=("Open" if contact["open_now"] else "Queued (after hours)") if handoff else None)
+                case_status="Not yet sent. Offer to open a support case." if handoff else None)
 
 def create_support_case(customer_id, department_id, contact_reason, order_id=None, ai_handoff_reason=None,
                         notes=None, language="English", now=None, db=None):

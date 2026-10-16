@@ -195,6 +195,63 @@ def test_prompt_asks_which_of_our_names_when_a_real_one_is_used(ids):
         assert all(carrier in listed for carrier in M.FICTIONAL_CARRIERS)
 
 
+def test_escalation_says_who_is_needed_and_that_nothing_was_sent(ids):
+    for role, step in (("cs", "Not yet sent. Offer to open a support case."),
+                       ("warehouse", "Not yet sent. The employee can contact the team directly.")):
+        text, is_err = assistant.run_tool(load_employee(ids[role]), "escalate_to_person",
+                                          {"question": "customer wants a $400 refund", "refund_amount_usd": 400})
+        d = json.loads(text)
+        assert not is_err and d["next_step"] == step and d["case_status"] == step
+        assert "This needs the Returns & Cores team" in d["message_to_customer"] and "Queued" not in text
+        prompt = assistant.system_prompt(load_employee(ids[role]))
+        assert 'Say "This needs the [team] team"' in prompt and "Never say you escalated, passed on" in prompt
+        assert "A support case exists only after the employee clicks Create case" in prompt
+
+
+def test_analytics_labels_stock_as_point_in_time(ids):
+    text, _ = assistant.run_tool(load_employee(ids["director"]), "analytics_summary",
+                                 {"period": "90", "sections": ["missing_by_warehouse_group", "inventory_by_warehouse", "top_parts"]})
+    d = json.loads(text)
+    notes = d["section_notes"]
+    assert set(notes) == {"missing_by_warehouse_group", "inventory_by_warehouse", "top_parts", "kpis"}
+    for s in ("missing_by_warehouse_group", "inventory_by_warehouse"):
+        assert notes[s].startswith("Point-in-time count as of ") and "90 days" not in notes[s].replace("'last N days'", "")
+        assert d["stock_as_of"] in notes[s]
+    assert "last 90 days" in notes["top_parts"] and "last 90 days" in d["period_covers"]
+    stock, sales = notes["kpis"].split("Orders, revenue")
+    assert "as of" in stock and "90 days" not in stock and "last 90 days" in sales
+    assert "Stock counts (on hand, available, in transit, missing, low stock) are point in time" in         assistant.system_prompt(load_employee(ids["director"]))
+
+
+def test_display_dates_follow_redaction(ids):
+    from app import dates
+    assert dates.display("2026-10-13") == "Tue, Oct 13"
+    assert dates.display("2026-10-14T05:00-04:00") == "Wed, Oct 14, 5:00 AM"
+    assert dates.display("2025-12-15") == "Mon, Dec 15, 2025"
+    assert dates.display("2026-10-11T21:00:00Z") is None and dates.display("SO-000123") is None
+    q = json.loads(assistant.run_tool(load_employee(ids["cs"]), "quote_shipping",
+                                      {"items": [{"part_number": "HL-100214"}], "ship_to_state": "TX"})[0])
+    assert q["options"][0]["estimated_delivery_by_display"] == dates.display(q["options"][0]["estimated_delivery_by"])
+
+    def pairs(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k.endswith("_display"):
+                    assert k[:-len("_display")] in o, k          # never a display value without its visible source
+                pairs(v)
+        elif isinstance(o, list):
+            for v in o:
+                pairs(v)
+    for role in ("warehouse", "cs"):
+        emp = load_employee(ids[role])
+        for name, a in (("search_orders", {"limit": 5}), ("find_in_transit", {}), ("get_part_details", {"part_number": "IH-100009"}),
+                        ("recommend_actions", {"part_number": "IH-100009", "warehouse": "ATL"})):
+            text, is_err = assistant.run_tool(emp, name, a)
+            assert not is_err, (role, name, text[:200])
+            pairs(json.loads(text))
+    assert 'Write dates the way the *_display values give them' in assistant.system_prompt(load_employee(ids["cs"]))
+
+
 def test_prompt_examples_use_plain_words(ids):
     """Step 3: worked examples for asking the engine, listing options, taxed totals and handoffs, with no tool,
     section or data values in them (the numbers must come from lookups, not from the prompt)."""

@@ -81,7 +81,8 @@ def test_plural_search_words_find_singular_part_names(ids):
 
 
 # --------------------------------------------------------------------------- analytics sections (live test fix F)
-META = {"period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "warehouses"}
+META = {"period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "warehouses", "stock_as_of",
+        "period_covers", "section_notes"}
 
 
 def test_analytics_sections_list_matches_the_dashboard(ids):

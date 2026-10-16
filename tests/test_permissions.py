@@ -162,7 +162,9 @@ def _all_field_names(client, ids):
     def walk(o):
         if isinstance(o, dict):
             for k, v in o.items():
-                found.add(k)
+                # "<key>_display" is added after redaction next to a visible <key>: it is classified as its base field
+                base = k[:-len("_display")] if k.endswith("_display") else None
+                found.add(base if base in o else k)
                 if k not in OPAQUE_FIELDS:
                     walk(v)
         elif isinstance(o, list):
