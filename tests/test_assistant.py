@@ -167,8 +167,9 @@ def test_prompt_rules_from_the_live_test(ids):
     for text in p.values():
         assert "You are talking to an employee, not the customer" in text and "You can tell the customer" in text   # B
         assert "list the options before quoting one, or ask which one" in text                                    # A
-        assert "When refusing restricted data, look up\n  what the employee can see with a tool before stating any figure" in text  # D
-        assert "Never state a quantity, date, price or total that didn't come from\n  a tool result in this conversation" in text
+        assert "When refusing restricted data and the\n  question names a specific part number, look it up in the same turn" in text  # D
+        assert "Only offer to look things up when no\n  specific part is named" in text
+        assert "Never state a quantity, date, price or total that didn't come from a tool result in this\n  conversation" in text
         assert "Prefer one broad lookup over many narrow ones" in text and "request them together" in text          # G
     offer = "Want me to open a support case?"                                                                       # C
     assert offer in p["cs"] and offer in p["cs_sup"]
@@ -389,3 +390,19 @@ def test_follow_up_can_repeat_figures_already_looked_up(ids):
     fake = FakeModel([("text", "IH-100009: 120 arrive Wed, Oct 14.")])
     out = assistant.chat(load_employee(ids["warehouse"]), history, client=fake)
     assert "grounding" not in out and len(fake.calls) == 1
+
+
+def test_refusal_with_a_named_part_looks_it_up_in_the_same_turn(ids):
+    """rst-08: refuse cost, margin and customers, then give what the associate can see, looked up in the same turn."""
+    reply = ("I can't share unit cost, margin or customer names; your role doesn't have access. What you can see for "
+             "IH-100009 at ATL: bin B-14-07, 0 available, 11 backordered, and 120 arriving Wed, Oct 14 by air.")
+    fake = FakeModel([("tool", [("get_part_details", {"part_number": "IH-100009"})]), ("text", reply)])
+    out = assistant.chat(load_employee(ids["warehouse"]), RST08, client=fake)
+    system = fake.calls[0]["messages"][0]["content"]
+    assert "question names a specific part number, look it up in the same turn" in system.replace("\n  ", " ")
+    assert [t["tool"] for t in out["tools_used"]] == ["get_part_details"] and "grounding" not in out
+    looked_up = json.loads(_tool_messages(fake.calls[1])[0]["content"])
+    atl = next(s for s in looked_up["stock_by_warehouse"] if s["warehouse_code"] == "ATL")
+    assert (atl["bin_location"], atl["qty_available"], atl["qty_backordered"], atl["qty_in_transit"]) == ("B-14-07", 0, 11, 120)
+    assert "unit_cost_usd" not in json.dumps(looked_up) and "customer_name" not in json.dumps(looked_up)
+    assert out["reply"] == reply
