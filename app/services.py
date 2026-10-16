@@ -352,3 +352,40 @@ def list_cases(emp: Employee, status: str | None = None, department: str | None 
                       WHERE {' AND '.join(where)} ORDER BY sc.opened_at_utc DESC LIMIT ?""", *args, int(limit))
     counts = db.rows("SELECT status, COUNT(*) n FROM support_cases GROUP BY status")
     return {"count": len(res), "status_counts": counts, "results": res}
+
+
+# --------------------------------------------------------------------------- support teams (read-only directory)
+def _clock(hhmm: str) -> str:
+    """'07:00' -> '7:00 AM'."""
+    h, m = int(hhmm[:2]), hhmm[3:5]
+    return f"{(h - 1) % 12 + 1}:{m} {'AM' if h < 12 else 'PM'}"
+
+
+def _span(spec: str) -> str:
+    return "closed" if spec == "Closed" else " - ".join(_clock(x) for x in spec.split("-"))
+
+
+def support_teams(emp: Employee, now: datetime | None = None) -> dict:
+    """Every support team with what it handles, how to reach it, its hours in Central time, and whether it's
+    open at the app's as-of time (or 'now', for tests). Read-only; the same facts the assistant's contact_team
+    tool gives every role."""
+    from . import agent_tools as AT, dates
+    now = now or db.as_of()
+    co = db.one("SELECT toll_free_phone, international_phone, main_email FROM company")
+    central = lambda dt: dt.astimezone(AT.HQ_TZ)
+    when = lambda dt: f"{dates.day(central(dt).date())}, {central(dt).strftime('%I:%M %p').lstrip('0')} Central"
+    teams = []
+    for d in db.rows("SELECT * FROM support_departments ORDER BY department_name"):
+        open_now = AT._is_open(d, now)
+        if open_now:
+            loc = central(now)
+            close = loc.replace(hour=AT._hours(d, loc)[1], minute=0, second=0, microsecond=0)
+            status = f"Open now, until {when(close)}"
+        else:
+            status = f"Closed, opens {when(AT._next_open(d, now))}"
+        teams.append(dict(department_id=d["department_id"], department_name=d["department_name"], handles=d["handles"],
+                          phone=d["phone"], email=d["email"], languages=d["languages"], open_now=open_now,
+                          status=status, hours=f"Mon-Fri {_span(d['weekday_hours'])}, Sat {_span(d['saturday_hours'])}, "
+                                               f"Sun {_span(d['sunday_hours'])} (Central)"))
+    return dict(as_of_display=dates.as_of_central(now), main_phone=co["toll_free_phone"],
+                international_phone=co["international_phone"], main_email=co["main_email"], teams=teams)

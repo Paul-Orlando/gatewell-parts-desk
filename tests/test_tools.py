@@ -119,3 +119,16 @@ def test_quote_ships_from_the_warehouse_that_has_the_item():
                        GROUP BY p.part_id HAVING COUNT(*) = 1 AND MIN(s.warehouse_code) <> ? LIMIT 1""", serving).values()
     q = AT.quote_shipping([{"part_number": pn}], "US", "TX")
     assert q["warehouse_code"] == wh and q["all_in_stock"] and q["options"][0]["estimated_delivery_by"]
+
+
+def test_support_teams_open_and_closed_in_central_time():
+    from datetime import datetime, timezone
+    from app import services
+    snap = {t["department_id"]: t for t in services.support_teams(None)["teams"]}      # Sun, Oct 11, 4:00 PM Central
+    assert not any(t["open_now"] for t in snap.values())
+    assert snap["RET"]["department_name"] == "Returns & Cores" and snap["RET"]["phone"] == "(800) 555-0145"
+    assert snap["RET"]["status"] == "Closed, opens Mon, Oct 12, 8:00 AM Central"
+    tue = {t["department_id"]: t for t in services.support_teams(None, now=datetime(2026, 10, 13, 15, 0, tzinfo=timezone.utc))["teams"]}
+    assert tue["RET"]["open_now"] and tue["RET"]["status"] == "Open now, until Tue, Oct 13, 5:00 PM Central"
+    sat = {t["department_id"]: t["open_now"] for t in services.support_teams(None, now=datetime(2026, 10, 10, 15, 0, tzinfo=timezone.utc))["teams"]}
+    assert sat == {"CS": True, "RET": True, "BIL": False, "DLR": False, "EXP": False}          # Sat 10 AM Central

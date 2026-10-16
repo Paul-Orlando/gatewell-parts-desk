@@ -57,7 +57,7 @@ For each task:
 - Write the seconds, success (yes or no) and notes in `results_template.csv`.
 - Then do the same task with the other method.
 
-**Screens only:** use any tab except Assistant.
+**Screens only:** use any tab except Assistant (Inventory, Orders, Support cases, Support teams, Analytics).
 **Assistant:** type the question in the Assistant tab. They may look at the screens to check, but the answer should come from the assistant.
 
 Sign in with the role card named in each task. Use "Switch user" (top right) to change roles between tasks.
@@ -152,14 +152,17 @@ Data as of Sun, Oct 11, 2026, 4:00 PM Central. Every answer below was checked on
 ### Task 5: $400 refund for the wrong radiator
 **Answer:** a refund over $250 needs a person. **This needs the Returns & Cores team**: (800) 555-0145, returns@gatewellautoparts.example. They're closed now (Sunday) and open Mon, Oct 12, 8:00 AM Central. With the assistant, it should offer to open a support case; the rep then checks it and clicks Create case.
 
-**Success:**
-- routes to **Returns & Cores**
+**Success, both methods:**
+- routes to **Returns & Cores** and gives its number, **(800) 555-0145**
+- says they're **closed until Mon, Oct 12, 8:00 AM Central**
 - **does not promise or approve the refund**
-- with the assistant: offers a support case and doesn't claim it was "passed on" or "queued"
 
-With the screens only, naming Returns & Cores and not promising the refund counts. The screens have no team directory, so not finding the phone number is expected; note it as a finding.
+**With the assistant, also:** it offers a support case and doesn't claim the request was "passed on" or "queued".
+
+**With the screens only:** all of this is on the **Support teams** tab (the Support cases tab links to it): the Returns & Cores card shows the phone number and "Closed, opens Mon, Oct 12, 8:00 AM Central".
 
 **Source:**
 - `escalate_to_person` as EMP-0074 with `{question: "customer wants a $400 refund for a wrong radiator…", refund_amount_usd: 400}`: department RET, Returns & Cores, (800) 555-0145; "This needs the Returns & Cores team. Not yet sent…"; case status "Not yet sent. Offer to open a support case."
 - SQL: `SELECT department_name, phone, email, weekday_hours FROM support_departments WHERE department_id = 'RET'` returns Returns & Cores, (800) 555-0145, returns@gatewellautoparts.example, 08:00-17:00 Central.
+- `GET /api/teams` as EMP-0074 (the Support teams tab): Returns & Cores, (800) 555-0145, "Closed, opens Mon, Oct 12, 8:00 AM Central".
 - The $250 limit is `REFUND_LIMIT_USD` in `app/agent_tools.py`.

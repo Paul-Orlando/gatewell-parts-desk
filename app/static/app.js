@@ -33,6 +33,7 @@ const ICON = {
   orders: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/>',
   assistant: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h8M8 13h5"/>',
   cases: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  teams: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>',
   analytics: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   lock: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
 };
@@ -41,6 +42,7 @@ const TAB = {
   orders: ["Orders", "Look up orders by number, customer, tracking number or part."],
   assistant: ["Assistant", "Ask about parts, stock, orders, shipping costs and policies. Answers come from live company data."],
   cases: ["Support cases", "Customer contacts that need a person, including handoffs from the chat."],
+  teams: ["Support teams", "Who to contact for returns, billing, dealer accounts, export and general questions."],
   analytics: ["Analytics", "Inventory levels, prices, sales and shipping costs for your area."],
 };
 const icon = (k) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[k]}</svg>`;
@@ -132,7 +134,8 @@ function route() {
   $("#page-title").textContent = TAB[S.route][0];
   closeDrawer();
   S.charts.forEach((c) => c.destroy()); S.charts = [];
-  ({ inventory: viewInventory, orders: viewOrders, assistant: viewAssistant, cases: viewCases, analytics: viewAnalytics })[S.route]();
+  ({ inventory: viewInventory, orders: viewOrders, assistant: viewAssistant, cases: viewCases, teams: viewTeams,
+     analytics: viewAnalytics })[S.route]();
 }
 
 function intro() { return `<p class="page-intro">${esc(TAB[S.route][1])}</p>`; }
@@ -400,9 +403,30 @@ async function orderDrawer(id) {
 }
 
 /* ------------------------------------------------------------------ support cases */
+/* Support teams: read-only directory of who to contact, with hours and open now at the data's as-of time. */
+async function viewTeams() {
+  $("#main").innerHTML = intro() + '<p class="empty">Loading…</p>';
+  let d;
+  try { d = await api("/api/teams"); } catch (e) { $("#main").innerHTML = intro() + `<p class="empty">${esc(e.message)}</p>`; return; }
+  if (S.route !== "teams") return;
+  $("#main").innerHTML = intro() + `
+    <p class="small muted" style="margin:-8px 0 14px">Main line <a href="tel:${esc(d.main_phone)}">${esc(d.main_phone)}</a> · International
+      <a href="tel:${esc(d.international_phone)}">${esc(d.international_phone)}</a> · <a href="mailto:${esc(d.main_email)}">${esc(d.main_email)}</a>.
+      Open or closed as of ${esc(d.as_of_display)}.</p>
+    <div class="teams">${d.teams.map((t) => `<section class="panel">
+      <h3>${esc(t.department_name)}</h3>
+      <p style="margin:0 0 8px">${t.open_now ? '<span class="status good">&#10003; Open</span>' : '<span class="status warn">&#9679; Closed</span>'}
+        <span class="small">${esc(t.status.replace(/^(Open now|Closed), /, ""))}</span></p>
+      <p class="sub">${esc(t.handles)}</p>
+      ${facts([["Phone", `<a href="tel:${esc(t.phone)}">${esc(t.phone)}</a>`], ["Email", `<a href="mailto:${esc(t.email)}">${esc(t.email)}</a>`],
+        ["Hours", esc(t.hours)], ["Languages", esc(t.languages)]])}
+    </section>`).join("")}</div>`;
+}
+
 async function viewCases() {
   const st = { status: "active", department: "", q: "" };
   $("#main").innerHTML = intro() + `
+    <p class="small" style="margin:-8px 0 14px">Need a team's phone number or hours? See <a href="#/teams">Support teams</a>.</p>
     <form class="filters" id="case-form">
       <label class="field grow"><span>Case, order or customer</span><input name="q" type="search" placeholder="e.g. CS-001180, SO-031950"></label>
       <label class="field"><span>Team</span><select name="department">${opt("", "All teams")}${S.meta.departments.map((d) => opt(d.department_id, d.department_name)).join("")}</select></label>
@@ -474,7 +498,7 @@ function handoffCard(h) {
     <div class="small">${c.open_now ? `<span class="status good">&#10003; Open now</span> until ${esc(c.closes_at)}` : `<span class="status warn">&#9679; Closed</span> opens ${esc(c.next_open)}`}</div>
     <div class="small muted">Languages: ${esc(c.languages)}</div>
     ${h.faq_suggestions && h.faq_suggestions.length ? `<div class="small" style="margin-top:6px">FAQ: ${h.faq_suggestions.map((f) => `<a href="${esc(f.url)}" target="_blank" rel="noopener">${esc(f.question)}</a>`).join(", ")}</div>` : ""}
-    <div class="small"><a href="${esc(c.faq_page)}" target="_blank" rel="noopener">Full FAQ page</a></div></div>`;
+    <div class="small"><a href="${esc(c.faq_page)}" target="_blank" rel="noopener">Full FAQ page</a> · <a href="#/teams">All support teams</a></div></div>`;
 }
 
 /* A case the assistant prepared. Nothing is saved until the employee clicks Create case. */

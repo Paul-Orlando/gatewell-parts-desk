@@ -36,13 +36,13 @@ ROLE_LABEL = {
 # What each role may do. "cost" = our costs and margins; "money" = customer prices, totals and payments;
 # "customer" = customer names and contact details.
 PERMISSIONS = {
-    "warehouse":        dict(tabs=["inventory", "orders", "assistant"], cost=False, money=False, customer=False,
+    "warehouse":        dict(tabs=["inventory", "orders", "assistant", "teams"], cost=False, money=False, customer=False,
                              analytics=False, cases=False, create_cases=False),
-    "customer_service": dict(tabs=["inventory", "orders", "assistant", "cases"], cost=False, money=True, customer=True,
+    "customer_service": dict(tabs=["inventory", "orders", "assistant", "cases", "teams"], cost=False, money=True, customer=True,
                              analytics=False, cases=True, create_cases=True),
-    "cs_supervisor":    dict(tabs=["inventory", "orders", "assistant", "cases", "analytics"], cost=False, money=True,
+    "cs_supervisor":    dict(tabs=["inventory", "orders", "assistant", "cases", "teams", "analytics"], cost=False, money=True,
                              customer=True, analytics=True, cases=True, create_cases=True),
-    "manager":          dict(tabs=["inventory", "orders", "assistant", "cases", "analytics"], cost=True, money=True,
+    "manager":          dict(tabs=["inventory", "orders", "assistant", "cases", "teams", "analytics"], cost=True, money=True,
                              customer=True, analytics=True, cases=True, create_cases=False),
 }
 
@@ -114,6 +114,7 @@ PUBLIC_FIELDS = {
     "languages", "handles", "open_now", "closes_at", "next_open", "hours_central", "main_phone",
     "international_phone", "main_email", "faq_page", "matches", "question", "answer", "url", "score", "handoff",
     "reasons", "reason_given", "faq_suggestions", "interpreter_needed", "message_to_customer", "case_status", "next_step",
+    "teams", "hours",
     # analytics layout and stock figures (money and cost figures are classified above)
     "period", "scope", "scope_note", "as_of", "as_of_display", "stock_as_of", "section_totals", "missing_by_warehouse", "how_to_read",
     "skus_missing", "period_covers", "section_notes", "kpis", "label", "orders",

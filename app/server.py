@@ -173,6 +173,13 @@ def order(order_id: str, emp: Employee = Depends(current_employee)):
 
 
 # --------------------------------------------------------------------------- support cases
+@app.get("/api/teams")
+def teams(emp: Employee = Depends(current_employee)):
+    """Support teams: contacts, hours and open now, for every role (the assistant's contact_team tool gives
+    every role the same facts). Read-only."""
+    return redact(services.support_teams(emp), emp)
+
+
 @app.get("/api/cases")
 def cases(status: str | None = "active", department: str | None = None, q: str | None = None,
           emp: Employee = Depends(current_employee)):

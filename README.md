@@ -28,6 +28,7 @@ Customer service agents, warehouse staff and managers use it to:
 | **Orders** | Everyone (warehouse staff see only their warehouse) | Find orders by number, customer, tracking number or part. See lines with bins, carrier and tracking, customs and export documents, currency, import tax and payment. |
 | **Assistant** | Everyone | Ask questions in plain English, 5 per visitor in the demo. It looks up answers with the same tools the screens use, limited to what your role may see. When it can't answer, it hands off to the right team with phone, email, hours and FAQ links. |
 | **Support cases** | Customer service, supervisors, managers | Open and resolved customer contacts, including handoffs from the chat. |
+| **Support teams** | Everyone | Read-only directory of the support teams: what each handles, phone, email, hours (Central), languages, and whether it's open now. |
 | **Analytics** | Customer service supervisors, managers | Inventory levels and value, low and missing stock, stock age, prices by category, sales by month, region and country, shipping cost vs. charged by carrier, and exchange gains and losses. |
 
 ### Roles

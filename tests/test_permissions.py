@@ -177,7 +177,7 @@ def _all_field_names(client, ids):
     for url, params in [("/api/inventory", {"limit": 5}), ("/api/inventory", {"stock_filter": "missing", "limit": 5}),
                         ("/api/parts/HL-100214", None), (f"/api/parts/{old}", None), ("/api/in-transit", None),
                         ("/api/orders", {"limit": 5}), (f"/api/orders/{intl}", None), (f"/api/orders/{with_case}", None),
-                        ("/api/cases", None), ("/api/analytics", {"period": "all"}),
+                        ("/api/cases", None), ("/api/teams", None), ("/api/analytics", {"period": "all"}),
                         ("/api/analytics", {"period": "all", "category": "Brakes"}),
                         ("/api/parts/IH-100009/suggestions", {"warehouse": "ATL"}),
                         ("/api/parts/FM-100194/suggestions", {"warehouse": "NWK"})]:
@@ -212,3 +212,27 @@ def test_every_returned_field_is_classified(client, ids):
     from app.auth import COST_FIELDS, CUSTOMER_FIELDS, MONEY_FIELDS, PUBLIC_FIELDS
     unclassified = _all_field_names(client, ids) - (PUBLIC_FIELDS | COST_FIELDS | MONEY_FIELDS | CUSTOMER_FIELDS)
     assert not unclassified, f"Classify these fields in app/auth.py: {sorted(unclassified)}"
+
+
+# --------------------------------------------------------------------------- support teams (read-only directory)
+def test_support_teams_for_every_role_and_sign_in_required(client, ids):
+    assert client.get("/api/teams").status_code == 401
+    for role, emp in ids.items():
+        assert "teams" in client.get("/api/me", headers=headers(emp)).json()["employee"]["tabs"], role
+        d = client.get("/api/teams", headers=headers(emp)).json()
+        assert {t["department_id"] for t in d["teams"]} == {"CS", "DLR", "EXP", "RET", "BIL"}, role
+        assert all(t["phone"] and t["email"] and t["hours"] and t["status"] for t in d["teams"]), role
+
+
+def test_support_teams_add_no_write_path(client, ids):
+    import hashlib
+    from app import db
+    from app.server import app
+    writes = sorted((r.path, sorted(r.methods - {"HEAD"})) for r in app.routes
+                    if getattr(r, "methods", None) and r.methods - {"GET", "HEAD"})
+    assert writes == [("/api/cases/confirm", ["POST"]), ("/api/chat", ["POST"]), ("/api/quote", ["POST"])]
+    assert client.post("/api/teams", headers=headers(ids["cs"])).status_code == 405
+    before = hashlib.sha256(open(db.DB_PATH, "rb").read()).hexdigest()
+    for emp in ids.values():
+        client.get("/api/teams", headers=headers(emp))
+    assert hashlib.sha256(open(db.DB_PATH, "rb").read()).hexdigest() == before
