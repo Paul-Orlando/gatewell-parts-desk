@@ -325,7 +325,7 @@
   employee_id: EMP-0074
   question: Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
   expect_words: [[free, no charge, "0.00", don't pay, do not pay]]
-  expect_tools: [quote_shipping, full_quote, search_faq]
+  expect_tools: [quote_shipping, full_quote]
   expect_handoff: false
   expect_refusal: false
   sources:

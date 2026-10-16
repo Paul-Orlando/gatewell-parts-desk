@@ -168,6 +168,8 @@ def main() -> int:
     ap.add_argument("--price-in", type=float, help="USD per 1M input tokens")
     ap.add_argument("--price-out", type=float, help="USD per 1M output tokens")
     ap.add_argument("--questions", default=str(EVAL_DIR / "questions.yaml"))
+    ap.add_argument("--rescore", metavar="CSV", help="re-score the saved answers in a results CSV with today's questions.yaml "
+                                                     "(no model calls); writes <name>_rescored.csv and .md")
     args = ap.parse_args()
 
     # Before the app is imported: demo limit off, eval audit log, chosen model.
@@ -175,6 +177,8 @@ def main() -> int:
     os.environ["GATEWELL_LOG_DIR"] = str(LOG_DIR)
     if args.model:
         os.environ["GATEWELL_MODEL"] = args.model
+    if args.rescore:
+        return rescore(Path(args.rescore), Path(args.questions))
     if not os.environ.get("OPENROUTER_API_KEY"):
         print("OPENROUTER_API_KEY isn't set in this terminal, so nothing was run.\n"
               "Set it for this session first (this script never reads .env), then run again.")
@@ -221,7 +225,9 @@ def main() -> int:
                              passed=passed, facts_ok=not checks["facts"], tools_ok=not checks["tools"],
                              handoff_ok=not checks["handoff"], refusal_ok=not checks["refusal"],
                              expect_refusal=q["expect_refusal"], seconds=r["seconds"], tool_calls=len(r["tools"]),
-                             tools_used=" ".join(t["tool"] for t in r["tools"]), input_tokens=tin, output_tokens=tout,
+                             tools_used=" ".join(t["tool"] for t in r["tools"]),
+                             handoff_department=(r["handoff"] or {}).get("department_id") or "",
+                             input_tokens=tin, output_tokens=tout,
                              cost_usd=round(cost, 6) if cost is not None else "",
                              problems=scrub("; ".join(f"{k}: {v}" for k, v in checks.items() if v)),
                              flags="; ".join(flags), question=q.get("question") or " / ".join(q["turns"]), reply=scrub(r["reply"])))
@@ -236,10 +242,54 @@ def main() -> int:
     return 0 if all(r["passed"] for r in rows) else 1
 
 
+# --------------------------------------------------------------------------- re-score saved answers
+def rescore(path: Path, questions_path: Path) -> int:
+    """Grade the answers saved in a results CSV again with today's questions.yaml, without calling the model.
+    Time, tool calls, tokens and cost are kept from the original run."""
+    import yaml
+    from app import analytics, assistant
+    qs = {q["id"]: q for q in yaml.safe_load(questions_path.read_text(encoding="utf-8"))}
+    internal = [t["name"] for t in assistant.TOOLS] + list(analytics.SECTIONS)
+    saved = list(csv.DictReader(open(path, encoding="utf-8")))
+    header = (path.with_suffix(".md").read_text(encoding="utf-8").splitlines() or [""])[0] if path.with_suffix(".md").exists() else ""
+    model = header.split(": ", 1)[1] if header.startswith("# Assistant evaluation: ") else path.stem
+    rows, inferred = [], 0
+    for r in saved:
+        q = qs[r["id"]]
+        used = r["tools_used"].split()
+        tools = [{"tool": t, "ok": True} for t in used]
+        dept = r.get("handoff_department")
+        if dept is None:            # older files didn't save the department: infer it from the original check
+            inferred += 1
+            dept = "" if "escalate_to_person" not in used else \
+                (q["expect_handoff"] if r["handoff_ok"] == "True" and q["expect_handoff"] else "unknown")
+        handoff = {"department_id": dept} if dept else None
+        if r["problems"].startswith("facts: error:"):
+            checks = {"facts": r["problems"][len("facts: "):], "tools": "", "handoff": "", "refusal": ""}
+        else:
+            checks = grade(q, r["reply"], tools, handoff)
+        flags = [f for f in r["flags"].split("; ") if f and not f.startswith("mentions internal name")] + \
+                [f"mentions internal name {n}" for n in internal if n in r["reply"]]
+        rows.append({**r, "passed": not any(checks.values()), "facts_ok": not checks["facts"],
+                     "tools_ok": not checks["tools"], "handoff_ok": not checks["handoff"],
+                     "refusal_ok": not checks["refusal"], "expect_refusal": q["expect_refusal"],
+                     "handoff_department": dept, "problems": "; ".join(f"{k}: {v}" for k, v in checks.items() if v),
+                     "flags": "; ".join(flags), "seconds": float(r["seconds"]), "tool_calls": int(r["tool_calls"]),
+                     "cost_usd": float(r["cost_usd"]) if r["cost_usd"] else ""})
+    runs = max(int(r["run"]) for r in rows)
+    note = (f"Re-scored from {path.name} with today's questions.yaml (no model calls). Time, tool calls and cost are "
+            "from the original run." + (" Handoff departments were inferred from the original checks." if inferred else ""))
+    csv_path, md_path = write_results(rows, model, runs, cost_known=all(r["cost_usd"] != "" for r in rows),
+                                      elapsed=sum(r["seconds"] for r in rows), stem=f"{path.stem}_rescored", note=note)
+    print(f"Re-scored {len(rows)} runs: {sum(r['passed'] for r in rows)} passed "
+          f"(was {sum(r['passed'] == 'True' for r in saved)}).\nResults: {csv_path.relative_to(ROOT)} and {md_path.relative_to(ROOT)}")
+    return 0
+
+
 # --------------------------------------------------------------------------- outputs
-def write_results(rows, model, runs, cost_known, elapsed) -> tuple[Path, Path]:
+def write_results(rows, model, runs, cost_known, elapsed, stem=None, note=None) -> tuple[Path, Path]:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    stem = f"{date.today().isoformat()}_{re.sub(r'[^A-Za-z0-9.-]+', '-', model)}"     # model ids contain dots ("3.1")
+    stem = stem or f"{date.today().isoformat()}_{re.sub(r'[^A-Za-z0-9.-]+', '-', model)}"     # model ids contain dots ("3.1")
     csv_path, md_path = RESULTS_DIR / f"{stem}.csv", RESULTS_DIR / f"{stem}.md"
     with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0]))
@@ -257,6 +307,7 @@ def write_results(rows, model, runs, cost_known, elapsed) -> tuple[Path, Path]:
 
     md = [f"# Assistant evaluation: {model}", "",
           f"Run on {date.today():%a, %b %d, %Y}. {len(qids)} questions × {runs} run(s) = {n} runs, {elapsed / 60:.1f} minutes.", "",
+          *([note, ""] if note else []),
           "| Measure | Result |", "|---|---|",
           f"| Pass rate (all runs) | {pct(sum(r['passed'] for r in rows), n)} |",
           f"| Consistency (questions that passed every run) | {pct(len(consistent), len(qids))} |",

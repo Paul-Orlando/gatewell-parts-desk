@@ -126,6 +126,8 @@ eval.bat --group restricted      # one group; also --only ID..., --model, --pric
 
 Results go to `tests/eval/results/<date>_<model>.csv` (one row per run) and `.md` (pass rates, consistency, refusal accuracy, time, cost, and every failure with the answer given). See `docs/EVIDENCE_PLAN.md`, Phase B.
 
+When a scoring rule changes, re-grade saved answers without calling the model: `.venv\Scripts\python tests\eval\run_eval.py --rescore tests\eval\results\<file>.csv` writes `<file>_rescored.csv` and `.md`. Every scoring change and its reason is logged in `tests/eval/SCORING_CHANGES.md`.
+
 ## Project layout
 
 ```
