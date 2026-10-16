@@ -87,3 +87,71 @@ def test_reply_cut_off_by_the_round_limit_does_not_count(demo_env, ids):
     assert r["demo"]["remaining"] == 5
     demo_env.setattr(assistant, "_get_client", lambda: AlwaysAnswers())
     assert ask(c, ids["cs"]).json()["demo"]["remaining"] == 4          # a finished answer still counts
+
+
+# ---------------------------------------------------------------- support case limits (the app's only write)
+from test_cases import _cases, _propose      # noqa: E402
+
+
+def confirm(c, emp, proposal_id):
+    return c.post("/api/cases/confirm", json={"proposal_id": proposal_id}, headers=headers(emp))
+
+
+@pytest.fixture
+def case_env(demo_env):
+    demo_env.setenv("GATEWELL_DEMO_CASE_LIMIT", "3")
+    demo_env.setenv("GATEWELL_DEMO_CASES_PER_DAY", "50")
+    return demo_env
+
+
+def test_three_cases_per_visitor_then_blocked(case_env, ids):
+    c, before = TestClient(app), _cases()
+    assert [confirm(c, ids["cs"], _propose(ids["cs"])["proposal_id"]).status_code for _ in range(3)] == [200] * 3
+    r = confirm(c, ids["cs"], _propose(ids["cs"])["proposal_id"])
+    assert r.status_code == 429 and "3 support cases per visitor" in r.json()["detail"]
+    assert _cases() == before + 3                                      # the blocked one saved nothing
+    assert confirm(TestClient(app), ids["cs"], _propose(ids["cs"])["proposal_id"]).status_code == 200   # a new visitor can
+
+
+def test_daily_cap_blocks_every_visitor(case_env, ids):
+    case_env.setenv("GATEWELL_DEMO_CASES_PER_DAY", "2")
+    for _ in range(2):
+        assert confirm(TestClient(app), ids["cs"], _propose(ids["cs"])["proposal_id"]).status_code == 200
+    r = confirm(TestClient(app), ids["cs"], _propose(ids["cs"])["proposal_id"])     # fresh cookie: still blocked
+    assert r.status_code == 429 and "today's limit of 2 support cases" in r.json()["detail"]
+
+
+def test_failed_confirm_does_not_use_a_case(case_env, ids):
+    c = TestClient(app)
+    for _ in range(5):
+        assert confirm(c, ids["cs"], "no-such-proposal").status_code == 404
+    assert [confirm(c, ids["cs"], _propose(ids["cs"])["proposal_id"]).status_code for _ in range(3)] == [200] * 3
+
+
+def test_case_limit_comes_after_the_role_check(case_env, ids):
+    case_env.setenv("GATEWELL_DEMO_CASES_PER_DAY", "0")               # every case would be blocked
+    p = _propose(ids["cs"])
+    assert confirm(TestClient(app), ids["warehouse"], p["proposal_id"]).status_code == 403
+    assert TestClient(app).post("/api/cases/confirm", json={"proposal_id": p["proposal_id"]}).status_code == 401
+
+
+def test_case_limit_off_only_with_demo_mode_0(case_env, ids):
+    case_env.setenv("GATEWELL_DEMO_CASE_LIMIT", "0")
+    c = TestClient(app)
+    assert confirm(c, ids["cs"], _propose(ids["cs"])["proposal_id"]).status_code == 429
+    case_env.setenv("GATEWELL_DEMO_MODE", "0")
+    assert confirm(c, ids["cs"], _propose(ids["cs"])["proposal_id"]).status_code == 200
+
+
+@pytest.mark.parametrize("value", [None, "", "  ", "1", "yes"])
+def test_demo_mode_stays_on_unless_switched_off(demo_env, value):
+    """A missing or empty variable can't turn the limits off; only 0/false/no/off does."""
+    from app import demo
+    if value is None:
+        demo_env.delenv("GATEWELL_DEMO_MODE", raising=False)
+    else:
+        demo_env.setenv("GATEWELL_DEMO_MODE", value)
+    assert demo.enabled()
+    for off in ("0", "false", "No", "OFF"):
+        demo_env.setenv("GATEWELL_DEMO_MODE", off)
+        assert not demo.enabled()

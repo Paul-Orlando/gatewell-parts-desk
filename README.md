@@ -78,25 +78,17 @@ The sample data is a snapshot taken **Sunday, Oct 11, 2026, 4:00 PM Central**. T
 | `GATEWELL_DEMO_MODE` | `1` | Demo version on (`1`) or off (`0`) |
 | `GATEWELL_DEMO_CHAT_LIMIT` | `5` | Assistant questions per visitor in the demo |
 | `GATEWELL_DEMO_IP_LIMIT` | `25` | Backstop per network address, so clearing cookies doesn't reset the limit |
+| `GATEWELL_DEMO_CASE_LIMIT` | `3` | Support cases per visitor in the demo |
+| `GATEWELL_DEMO_CASES_PER_DAY` | `50` | Support cases per day for all visitors together |
 | `GATEWELL_DB` | `data/car_parts_inventory.db` | Database file. On Railway, use the volume, e.g. `/data/car_parts_inventory.db` |
 | `GATEWELL_LOG_DIR` | `logs/` | Assistant audit log and demo counts. On Railway, use `/data/logs` |
 | `GATEWELL_AS_OF` | `2026-10-11T21:00:00Z` | "Now" for the snapshot, or `now` for live data |
 
 ## Deploy to Railway
 
-> **Before going public:** the prototype's pick-an-employee sign-in lets anyone act as any employee. Add company sign-on first; see `docs/NEXT_STEPS.md`, step 5.
+**`docs/DEPLOY.md`** is the full guide: the exact Variables, the `/data` volume, the `/api/health` health check, what's logged, and how to reset the demo data and counters.
 
-1. **Create a service.** Push this folder to a GitHub repository, then in Railway choose New Project, then Deploy from GitHub repo.
-2. **Set the start command.** Railway reads it from the `Procfile`: `uvicorn app.server:app --host 0.0.0.0 --port $PORT`.
-3. **Add a volume** to the service, mounted at **`/data`**.
-4. **Set these Variables:**
-   - `OPENROUTER_API_KEY`
-   - `GATEWELL_DB=/data/car_parts_inventory.db`
-   - `GATEWELL_LOG_DIR=/data/logs`
-
-   On first start, the app copies the sample database onto the volume, and it never overwrites it after that.
-5. **Set the health check** path to **`/api/health`** in the service settings.
-6. **Generate a domain** under Networking, and open it.
+> **Before going public with real data:** the prototype's pick-an-employee sign-in lets anyone act as any employee. That's fine for the demo's synthetic data only. Add company sign-on first; see `docs/NEXT_STEPS.md`, step 5.
 
 ## Test it
 
@@ -105,12 +97,12 @@ pip install -r requirements.txt
 python -m pytest tests
 ```
 
-There are 203 tests. They run against a throwaway copy of the database and need no API key, because a scripted stand-in replaces the model. They cover:
+There are 231 tests. They run against a throwaway copy of the database and need no API key, because a scripted stand-in replaces the model. They cover:
 - **Permissions:** what every role can and can't see, and data-scope limits.
 - **The assistant's tool loop:** tool access by role, redaction, request settings, malformed tool calls, escalation, the loop limit, audit logging, and OpenRouter error handling.
-- **The demo limit:** 5 per visitor, not reset by switching employees, failures don't count, a backstop per network address, and an off switch.
+- **The demo limits:** 5 questions per visitor, not reset by switching employees, failures don't count, a backstop per network address; 3 support cases per visitor and 50 per day; on unless explicitly switched off.
 - **Business rules:** batteries ground-only and not overseas, Postara size limits, no free shipping on oversize parts, currency and tax totals, after-hours handoff, and a read-only database.
-- **Deployment:** the health check, security headers, and the first-start database copy.
+- **Deployment:** the health check (503 when the database can't be read), security headers, the first-start database copy, and log folders created on a fresh volume.
 
 ## Evaluate the assistant
 

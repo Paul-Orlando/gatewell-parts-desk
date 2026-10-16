@@ -69,8 +69,12 @@ def index():
 
 @app.get("/api/health")
 def health():
-    """For Railway's health check: the app is up and the database can be read."""
-    return {"ok": db.scalar("SELECT COUNT(*) FROM warehouses") == 11}
+    """For Railway's health check: the app is up and the database can be read. 503 otherwise, so a bad deploy fails."""
+    try:
+        ok = db.scalar("SELECT COUNT(*) FROM warehouses") == 11
+    except Exception:
+        ok = False
+    return JSONResponse({"ok": ok}, status_code=200 if ok else 503)
 
 
 # --------------------------------------------------------------------------- sign-in (prototype)
@@ -225,11 +229,16 @@ class ConfirmCaseIn(BaseModel):
 
 
 @app.post("/api/cases/confirm")
-def confirm_case(body: ConfirmCaseIn, emp: Employee = Depends(current_employee)):
-    """The employee clicked Create case on a case the assistant prepared. This is the only way the chat opens a case."""
+def confirm_case(body: ConfirmCaseIn, request: Request, emp: Employee = Depends(current_employee)):
+    """The employee clicked Create case on a case the assistant prepared. This is the only way the chat opens a case.
+    Checks run in order: sign-in, role, then the demo's case limits (per visitor and per day)."""
     require(emp, "create_cases")
+    blocked = demo.reserve_case(request.state.visitor)
+    if blocked:
+        raise HTTPException(429, blocked)
     case = assistant.confirm_case(emp, body.proposal_id)
     if not case:
+        demo.release_case(request.state.visitor)          # nothing was created, so it doesn't count
         raise HTTPException(404, "This case can't be created: it was already created, has expired, or was prepared "
                                  "for someone else. Ask the assistant to prepare it again.")
     return redact(case, emp)

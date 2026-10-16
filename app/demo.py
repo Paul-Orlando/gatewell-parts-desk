@@ -1,5 +1,5 @@
 """
-Demo limit for the assistant.
+Demo limits for the assistant and for support cases.
 
 In the demo version, each visitor can ask the assistant a fixed number of questions
 (default 5). The count is kept on the server, keyed by a visitor cookie the server sets,
@@ -9,18 +9,25 @@ higher limit per network address stops someone from resetting it by clearing coo
 Only answered questions count: a request that fails, finds the assistant switched off, or
 ends with "I couldn't finish looking that up" (the tool-round limit) doesn't use up a question.
 
+Support cases, the app's only write, are limited too: a few per visitor (same cookie) and a daily total for the
+whole demo, so clearing cookies can't fill the database. Only cases actually created count.
+
 Settings (environment variables):
     GATEWELL_DEMO_MODE        1 = demo limits on (default), 0 = off
     GATEWELL_DEMO_CHAT_LIMIT  questions per visitor (default 5)
     GATEWELL_DEMO_IP_LIMIT    questions per network address (default 25, allows a few
                               people demoing from the same office)
-    GATEWELL_DEMO_DB          where the counts are stored (default logs/demo_usage.db)
+    GATEWELL_DEMO_CASE_LIMIT  support cases per visitor (default 3)
+    GATEWELL_DEMO_CASES_PER_DAY  support cases per day for everyone together (default 50; days in Central time)
+    GATEWELL_DEMO_DB          where the counts are stored (default <GATEWELL_LOG_DIR>/demo_usage.db)
+A missing or empty GATEWELL_DEMO_MODE keeps every limit on.
 """
 import os
 import sqlite3
 import threading
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parent.parent
 COOKIE = "gw_demo"
@@ -36,6 +43,14 @@ def limit() -> int:
 
 def ip_limit() -> int:
     return int(os.environ.get("GATEWELL_DEMO_IP_LIMIT", "25"))
+
+
+def case_limit() -> int:
+    return int(os.environ.get("GATEWELL_DEMO_CASE_LIMIT", "3"))
+
+
+def cases_per_day() -> int:
+    return int(os.environ.get("GATEWELL_DEMO_CASES_PER_DAY", "50"))
 
 
 def _db_path() -> str:
@@ -87,6 +102,50 @@ def record(visitor: str, ip: str) -> None:
                 con.execute("""INSERT INTO demo_usage (usage_key, questions, first_at, last_at) VALUES (?, 1, ?, ?)
                                ON CONFLICT(usage_key) DO UPDATE SET questions = questions + 1, last_at = excluded.last_at""",
                             (key, now, now))
+            con.commit()
+        finally:
+            con.close()
+
+
+def _case_keys(visitor: str) -> tuple[str, str]:
+    today = datetime.now(ZoneInfo("America/Chicago")).date().isoformat()
+    return f"cases:visitor:{visitor}", f"cases:day:{today}"
+
+
+def reserve_case(visitor: str) -> str | None:
+    """Reserve one support case for this visitor. Returns None if it may go ahead, or the message to show when a
+    limit is reached. Checking and counting happen in one locked step, so two clicks at once can't both pass."""
+    if not enabled():
+        return None
+    v_key, day_key = _case_keys(visitor)
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with _lock:
+        con = _con()
+        try:
+            if _used(con, v_key) >= case_limit():
+                return (f"This demo allows {case_limit()} support cases per visitor, and you've used them. "
+                        "You can still ask questions and use the other tabs.")
+            if _used(con, day_key) >= cases_per_day():
+                return f"The demo has reached today's limit of {cases_per_day()} support cases. Try again tomorrow."
+            for key in (v_key, day_key):
+                con.execute("""INSERT INTO demo_usage (usage_key, questions, first_at, last_at) VALUES (?, 1, ?, ?)
+                               ON CONFLICT(usage_key) DO UPDATE SET questions = questions + 1, last_at = excluded.last_at""",
+                            (key, now, now))
+            con.commit()
+        finally:
+            con.close()
+    return None
+
+
+def release_case(visitor: str) -> None:
+    """Give a reserved case back when it wasn't created (expired, already created, prepared for someone else)."""
+    if not enabled():
+        return
+    with _lock:
+        con = _con()
+        try:
+            for key in _case_keys(visitor):
+                con.execute("UPDATE demo_usage SET questions = MAX(questions - 1, 0) WHERE usage_key = ?", (key,))
             con.commit()
         finally:
             con.close()
