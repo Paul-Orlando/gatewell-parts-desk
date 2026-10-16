@@ -344,6 +344,8 @@ How to work
 - Stock counts (on hand, available, in transit, missing, low stock) are point in time: label them "as of [date]", never
   with the sales period. Use each analytics section's note to say what its figures cover.
 - Write dates the way the *_display values give them (for example "Tue, Oct 13"), never as 2026-10-13.
+- Shipment ETAs, ship dates and other local times: use the *_display text, which names the time zone and place
+  (for example "Wed, Oct 14, 5:00 AM Eastern (ATL local time)"). Never relabel a local time as Central.
 - Give as-of times in Central, the way as_of_display and stock_as_of give them (for example "Sun, Oct 11, 4:00 PM
   Central"); never in UTC.
 - When a customer name isn't found, search once more at most, and only with an obvious spelling fix. Then ask the
@@ -495,7 +497,9 @@ def _fit(out) -> str:
             parent[key] = rows[:keep]
             txt = json.dumps(out, default=str)
         dropped = []
-        while len(txt) > MAX_RESULT_CHARS * 0.9 and len(out) > 1:   # still too big: leave out whole sections, never cut JSON
+        # Only if trimming rows wasn't enough (still over the cap): leave out whole sections, down to 90% of the cap
+        # so the note below fits. Never cut the JSON.
+        while len(out) > 1 and len(txt) > MAX_RESULT_CHARS * (0.9 if dropped else 1):
             key = max(out, key=lambda k: len(json.dumps(out[k], default=str)))
             dropped.append(key)
             del out[key]
@@ -519,19 +523,54 @@ def _dig(o, path):
     return o
 
 
-def _with_display_dates(o):
-    """Add "<key>_display" ("Tue, Oct 13") next to every ISO date or local date-time, so replies use the app's date
-    style. Runs after redact(), so a display value only exists where its source field is visible to the role."""
+WAREHOUSE_TZ = {r["warehouse_code"]: r["timezone"] for r in db.rows("SELECT warehouse_code, timezone FROM warehouses")}
+CUSTOMER_TIMES = ("ordered_at_local", "delivered_at_local", "opened_at_customer_local")
+
+
+def _local_zone(key: str, d: dict, ctx: dict) -> tuple[str | None, str]:
+    """The time zone and a 'where' label for a local date-time field, from the record it sits in (or its parent)."""
+    if key == "opened_at_hq_local":
+        return "America/Chicago", "HQ"
+    if key.startswith("ship_date_origin"):
+        wh = d.get("origin_id") if d.get("origin_id") in WAREHOUSE_TZ else None
+        return d.get("origin_timezone") or WAREHOUSE_TZ.get(wh), wh or d.get("origin_city") or "origin"
+    if key in CUSTOMER_TIMES:
+        tz = d.get("customer_timezone") or ctx.get("customer_timezone")
+        if not tz and d.get("customer_id"):
+            tz = db.scalar("SELECT timezone FROM customers WHERE customer_id = ?", d["customer_id"])
+        return tz, "customer"
+    wh = (d.get("destination_warehouse") or d.get("warehouse") or d.get("warehouse_code") or d.get("for_warehouse")
+          or ctx.get("warehouse"))
+    return d.get("destination_timezone") or WAREHOUSE_TZ.get(wh) or ctx.get("timezone"), wh or "local"
+
+
+def _with_display_dates(o, ctx=None):
+    """Add "<key>_display" next to every ISO date ("Tue, Oct 13") and local date-time, so replies use the app's date
+    style. Local times name their zone ("Wed, Oct 14, 5:00 AM Eastern (ATL local time)"), never just an offset.
+    Runs after redact(), so a display value only exists where its source field is visible to the role."""
+    ctx = dict(ctx or {})
     if isinstance(o, dict):
+        for k in ("for_warehouse", "warehouse_code", "warehouse", "destination_warehouse"):
+            if isinstance(o.get(k), str) and o[k] in WAREHOUSE_TZ:
+                ctx["warehouse"] = o[k]
+                break
+        if o.get("customer_timezone"):
+            ctx["customer_timezone"] = o["customer_timezone"]
         out = {}
         for k, v in o.items():
-            out[k] = _with_display_dates(v)
-            shown = dates.display(v)
-            if shown and f"{k}_display" not in o:
-                out[f"{k}_display"] = shown
+            out[k] = _with_display_dates(v, ctx)
+            if f"{k}_display" in o:
+                continue
+            if isinstance(v, str) and dates._LOCAL.match(v):
+                tz, where = _local_zone(k, o, ctx)
+                out[f"{k}_display"] = dates.display_local(v, tz, where)
+            else:
+                shown = dates.display(v)
+                if shown:
+                    out[f"{k}_display"] = shown
         return out
     if isinstance(o, list):
-        return [_with_display_dates(v) for v in o]
+        return [_with_display_dates(v, ctx) for v in o]
     return o
 
 

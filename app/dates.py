@@ -22,6 +22,35 @@ def as_of_central(dt: datetime | None = None) -> str:
     return f"{day(t.date())}, {t.strftime('%I:%M %p').lstrip('0')} Central"
 
 
+US_ZONES = {  # U.S. and Canadian zones by their common names; elsewhere the city ('Shanghai time')
+    "America/New_York": "Eastern", "America/Detroit": "Eastern", "America/Indiana/Indianapolis": "Eastern",
+    "America/Toronto": "Eastern", "America/Chicago": "Central", "America/Winnipeg": "Central",
+    "America/Denver": "Mountain", "America/Boise": "Mountain", "America/Edmonton": "Mountain",
+    "America/Phoenix": "Mountain (Arizona)", "America/Los_Angeles": "Pacific", "America/Vancouver": "Pacific",
+    "America/Tijuana": "Pacific", "America/Halifax": "Atlantic", "America/Anchorage": "Alaska",
+    "Pacific/Honolulu": "Hawaii", "America/Honolulu": "Hawaii"}
+
+
+def zone_name(tz: str | None) -> str | None:
+    """'America/New_York' -> 'Eastern'; outside the U.S. the city: 'Asia/Shanghai' -> 'Shanghai time'."""
+    if not tz:
+        return None
+    return US_ZONES.get(tz) or tz.split("/")[-1].replace("_", " ") + " time"
+
+
+def display_local(value: str, tz: str | None, where: str) -> str | None:
+    """A local date-time with its zone named: 'Wed, Oct 14, 5:00 AM Eastern (ATL local time)'. Without a known zone,
+    the UTC offset is named instead, so a time is never shown as Central by mistake."""
+    shown = display(value)
+    if not shown or not _LOCAL.match(value):
+        return shown
+    zone = zone_name(tz)
+    if zone:
+        return f"{shown} {zone} ({where} local time)"
+    off = datetime.fromisoformat(value).strftime("%z")
+    return f"{shown} ({where} local time, UTC{off[:3]}:{off[3:]})"
+
+
 def display(value) -> str | None:
     """A display string for an ISO date or a local date-time with an offset; None for anything else
     (UTC stamps are skipped: replies use local times, which have their own fields)."""

@@ -89,7 +89,7 @@ PUBLIC_FIELDS = {
     "missing", "backordered", "monthly_sales", "order_month", "units",
     # inbound shipments
     "in_transit", "shipments", "shipment_id", "shipment_type", "po_number", "transfer_number", "origin_name",
-    "origin_city", "origin_country", "destination_warehouse", "mode", "carrier", "port_of_entry",
+    "origin_city", "origin_country", "origin_timezone", "destination_warehouse", "mode", "carrier", "port_of_entry",
     "ship_date_origin_local", "eta_destination_local", "exception_note", "currency", "lines", "quantity",
     "total_units",
     # orders

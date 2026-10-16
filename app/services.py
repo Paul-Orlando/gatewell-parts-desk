@@ -302,7 +302,7 @@ def in_transit(emp: Employee, warehouse: str | None = None, part_number: str | N
     if part_number: where.append("part_number = ?"); args.append(part_number.strip().upper())
     if status: where.append("status = ?"); args.append(status)
     if origin_country: where.append("origin_country LIKE ?"); args.append(f"%{origin_country}%")
-    grouped = f"""SELECT shipment_id, shipment_type, po_number, transfer_number, origin_name, origin_city, origin_country,
+    grouped = f"""SELECT shipment_id, shipment_type, po_number, transfer_number, origin_name, origin_city, origin_country, origin_timezone,
                          destination_warehouse, mode, carrier, port_of_entry, ship_date_origin_local,
                          eta_destination_local, status, exception_note, currency,
                          COUNT(*) lines, SUM(quantity) units, MIN(eta_utc) eta_sort

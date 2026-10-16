@@ -426,3 +426,26 @@ def test_refusal_with_a_named_part_looks_it_up_in_the_same_turn(ids):
     assert (atl["bin_location"], atl["qty_available"], atl["qty_backordered"], atl["qty_in_transit"]) == ("B-14-07", 0, 11, 120)
     assert "unit_cost_usd" not in json.dumps(looked_up) and "customer_name" not in json.dumps(looked_up)
     assert out["reply"] == reply
+
+
+def test_local_times_name_their_time_zone(ids):
+    """ETAs and ship dates carry a display string that names the zone and place, so a time is never mislabelled."""
+    from app import dates
+    det = json.loads(assistant.run_tool(load_employee(ids["warehouse"]), "get_part_details", {"part_number": "IH-100009"})[0])
+    eta = det["in_transit"][0]
+    assert eta["eta_destination_local"] == "2026-10-14T05:00-04:00"
+    assert eta["eta_destination_local_display"] == "Wed, Oct 14, 5:00 AM Eastern (ATL local time)"
+    rec = json.loads(assistant.run_tool(load_employee(ids["wh_manager"]), "recommend_actions",
+                                        {"part_number": "IH-100009", "warehouse": "ATL"})[0])
+    assert rec["reorder"]["next_eta_local_display"] == "Wed, Oct 14, 5:00 AM Eastern (ATL local time)"
+    q = json.loads(assistant.run_tool(load_employee(ids["cs"]), "quote_shipping",
+                                      {"items": [{"part_number": "IH-100009"}], "ship_to_state": "TX"})[0])
+    assert q["lines"][0]["next_inbound"]["eta_local_display"] == "Wed, Oct 14, 5:00 AM Eastern (ATL local time)"
+    moving = json.loads(assistant.run_tool(load_employee(ids["director"]), "find_in_transit", {"limit": 50})[0])["shipments"]
+    for s in moving:                                                  # every ETA and ship date names a zone, none "Central" by accident
+        assert s["eta_destination_local_display"].endswith(f"({s['destination_warehouse']} local time)")
+        assert "local time" in s["ship_date_origin_local_display"] and "UTC" not in s["ship_date_origin_local_display"]
+    hnl = next(s for s in moving if s["destination_warehouse"] == "HNL")
+    assert " Hawaii (HNL local time)" in hnl["eta_destination_local_display"]
+    assert dates.display_local("2026-10-14T05:00-04:00", None, "ATL") == "Wed, Oct 14, 5:00 AM (ATL local time, UTC-04:00)"
+    assert "never relabel a local time as central" in assistant.system_prompt(load_employee(ids["cs"])).lower().replace("\n  ", " ")
