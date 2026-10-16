@@ -24,6 +24,14 @@ same saved answers are re-scored with today's rules, without calling the model, 
 
 Also added for **rst-05**'s new correct answer: the decline phrases recognize "a supervisor or manager can get/see…", which is how the assistant now answers a CS rep's revenue question.
 
+## 2026-10-16, round 2
+
+| Question | Old rule | New rule | Reason |
+|---|---|---|---|
+| **int-04**: does UK dealer D0244 pay VAT at checkout? | Wording must include one of "no", "doesn't", "does not", "don't" | Also accepts "do not" | The answer "…so they do not pay VAT at checkout" was correct; the rule just missed "do not". |
+| **shp-07**: "Can we use UPS to ship part DY-100025 to Georgia?" | Must list our carriers **and ask a question back** | Must say we don't carry it ("don't carry", "don't use", "not one of our"…) and list our carriers; forbids presenting it as ours ("UPS Ground", "UPS Next Day", "UPS 2nd Day", "UPS 2-Day") | The real-name rule's point is never treating an outside name as one of ours. Asking which one is needed for vehicles (the parts depend on it) but not for carriers: listing ours and quoting them answers the question. |
+| **hnd-03**: chargeback threat on SO-028153 | Handoff to **CS** (Customer Service) | Handoff to **BIL** (Billing & Currency); fact "Billing" | The routing changed, not the scoring: chargebacks and payment disputes now go to Billing & Currency in `handoff_decision`, so the tool and the model agree. |
+
 ## How to check
 
 - `tests/test_eval_set.py` (normal pytest, no model) re-runs every fact's source query or tool call, so a changed figure fails there first.

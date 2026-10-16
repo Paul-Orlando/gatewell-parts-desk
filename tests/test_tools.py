@@ -132,3 +132,11 @@ def test_support_teams_open_and_closed_in_central_time():
     assert tue["RET"]["open_now"] and tue["RET"]["status"] == "Open now, until Tue, Oct 13, 5:00 PM Central"
     sat = {t["department_id"]: t["open_now"] for t in services.support_teams(None, now=datetime(2026, 10, 10, 15, 0, tzinfo=timezone.utc))["teams"]}
     assert sat == {"CS": True, "RET": True, "BIL": False, "DLR": False, "EXP": False}          # Sat 10 AM Central
+
+
+
+def test_chargebacks_and_payment_disputes_go_to_billing():
+    for msg in ("The customer is furious and says they'll file a chargeback.",
+                "They want a refund or they'll file a chargeback.", "The customer disputed the charge on their card."):
+        assert AT.handoff_decision(msg)["department_id"] == "BIL", msg
+    assert AT.handoff_decision("customer wants a $400 refund", refund_amount_usd=400)["department_id"] == "RET"

@@ -167,7 +167,8 @@ def test_prompt_rules_from_the_live_test(ids):
     for text in p.values():
         assert "You are talking to an employee, not the customer" in text and "You can tell the customer" in text   # B
         assert "list the options before quoting one, or ask which one" in text                                    # A
-        assert "look up what they can see about the\n  same thing and include it" in text                               # D
+        assert "When refusing restricted data, look up\n  what the employee can see with a tool before stating any figure" in text  # D
+        assert "Never state a quantity, date, price or total that didn't come from\n  a tool result in this conversation" in text
         assert "Prefer one broad lookup over many narrow ones" in text and "request them together" in text          # G
     offer = "Want me to open a support case?"                                                                       # C
     assert offer in p["cs"] and offer in p["cs_sup"]
@@ -338,3 +339,53 @@ def test_prompt_examples_use_plain_words(ids):
         assert "Which engine does it have" in ex and "list both" in ex and "full quote" in ex and "$250" in ex
         assert not any(name in ex for name in [t["name"] for t in assistant.TOOLS] + list(analytics.SECTIONS))
         assert ("open a support case" in ex) == (role == "cs")
+
+
+
+# --------------------------------------------------------------------------- grounding check (rst-08, 2026-10-16)
+INVENTED = "I can't share cost or customers. Part **IH-100009**: ATL Warehouse: 12 on hand, 10 available, 2 reserved."
+RST08 = [{"role": "user", "content": "What's our unit cost and margin on part IH-100009, and which customers ordered it?"}]
+
+
+def _last_audit():
+    lines = (assistant.LOG_DIR / "assistant_audit.jsonl").read_text(encoding="utf-8").splitlines()
+    return json.loads(lines[-1])
+
+
+def test_invented_figures_never_reach_the_user(ids):
+    fake = FakeModel([("text", INVENTED), ("text", INVENTED)])
+    out = assistant.chat(load_employee(ids["warehouse"]), RST08, client=fake)
+    assert out["grounding"] == "blocked" and len(fake.calls) == 2
+    assert "IH-100009" in out["reply"] and "Let me look that up" in out["reply"]
+    for n in ("12 on hand", "10 available", "2 reserved"):
+        assert n not in out["reply"]
+    assert "without looking them up" in fake.calls[1]["messages"][-1]["content"]          # the retry instruction
+    assert _last_audit()["grounding"] == "blocked"
+
+
+def test_retry_that_looks_it_up_answers_normally(ids):
+    fake = FakeModel([("text", INVENTED), ("tool", [("get_part_details", {"part_number": "IH-100009"})]),
+                      ("text", "IH-100009 at ATL: 0 available, 11 backordered; 120 arrive Wed, Oct 14.")])
+    out = assistant.chat(load_employee(ids["warehouse"]), RST08, client=fake)
+    assert out["grounding"] == "retried" and out["reply"].startswith("IH-100009 at ATL: 0 available")
+    assert [t["tool"] for t in out["tools_used"]] == ["get_part_details"]
+    assert _last_audit()["grounding"] == "retried"
+
+
+def test_tool_backed_and_figure_free_answers_are_untouched(ids):
+    emp = load_employee(ids["warehouse"])
+    fake = FakeModel([("tool", [("get_part_details", {"part_number": "IH-100009"})]),
+                      ("text", "IH-100009 at ATL: 0 available, 11 backordered; 120 arrive Wed, Oct 14.")])
+    out = assistant.chat(emp, RST08, client=fake)
+    assert "grounding" not in out and len(fake.calls) == 2 and "grounding" not in _last_audit()
+    fake = FakeModel([("text", "For IH-100009, which warehouse do you mean?")])
+    out = assistant.chat(emp, RST08, client=fake)
+    assert "grounding" not in out and len(fake.calls) == 1
+
+
+def test_follow_up_can_repeat_figures_already_looked_up(ids):
+    history = RST08 + [{"role": "assistant", "content": "IH-100009 at ATL: 0 available, 120 arrive Wed, Oct 14."},
+                       {"role": "user", "content": "When did you say more arrive?"}]
+    fake = FakeModel([("text", "IH-100009: 120 arrive Wed, Oct 14.")])
+    out = assistant.chat(load_employee(ids["warehouse"]), history, client=fake)
+    assert "grounding" not in out and len(fake.calls) == 1

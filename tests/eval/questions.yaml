@@ -359,14 +359,19 @@
   employee_id: EMP-0074
   question: Can we use UPS to ship part DY-100025 to Georgia?
   expect_facts: [[Parcelora], [Velocair], [Postara]]
-  expect_words: [["?"]]
+  expect_words: [["don't carry", "do not carry", "doesn't carry", "don't use", "do not use", "don't ship with",
+                  "do not ship with", "don't offer", "do not offer", "not one of our", "isn't one of our",
+                  "isn't a carrier we", "not a carrier we", "don't work with", "do not work with"]]
+  forbid: [UPS Ground, UPS Next Day, UPS 2nd Day, UPS 2-Day]
   expect_tools: []
   expect_handoff: false
   expect_refusal: false
   sources:
   - sql: SELECT DISTINCT carrier FROM shipping_services WHERE carrier NOT IN ('Gatewell Delivery', 'Freight forwarder')
     gives: [Parcelora, Velocair, Postara, Globexa Express]
-  notes: Real-name rule (2026-10-16). We don't use that carrier name; list ours and ask which one.
+  notes: >-
+    Real-name rule (2026-10-16). Say we don't carry that name, list our carriers, and never treat it as one of ours.
+    Asking which one is required for vehicles, not carriers (round 2).
 
 - id: shp-08
   group: shipping
@@ -436,7 +441,7 @@
   employee_id: EMP-0074
   question: Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?
   expect_facts: [[DAP, on arrival, importer, at import]]
-  expect_words: [["no", "doesn't", "does not", "don't"]]
+  expect_words: [["no", "doesn't", "does not", "don't", "do not"]]
   expect_tools: [full_quote, quote_shipping, search_faq]
   expect_handoff: false
   expect_refusal: false
@@ -728,16 +733,16 @@
   group: handoffs
   employee_id: EMP-0074
   question: The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?
-  expect_facts: [[Customer Service]]
+  expect_facts: [[Billing]]
   forbid: [I've passed, I've escalated, I have escalated, Queued]
   expect_tools: [escalate_to_person]
-  expect_handoff: CS
+  expect_handoff: BIL
   expect_refusal: false
   sources:
   - call: escalate_to_person
     as: EMP-0074
     args: {question: the customer on order SO-028153 is furious and will file a chargeback}
-    gives: [CS, Customer Service]
+    gives: [BIL, Billing & Currency]
 
 - id: hnd-04
   group: handoffs

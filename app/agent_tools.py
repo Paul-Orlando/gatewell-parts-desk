@@ -404,7 +404,8 @@ def search_faq(question, limit=3):
                                             for s, f in scored[:limit]])
 
 # ============================================================================ live support
-_TOPIC = [("EXP", r"customs|import|duty|duties|international|export|abroad|overseas|vat|gst|border"),
+_TOPIC = [("BIL", r"chargeback|charge back|payment dispute|disputed? (the )?(charge|payment)"),   # before refunds
+          ("EXP", r"customs|import|duty|duties|international|export|abroad|overseas|vat|gst|border"),
           ("RET", r"return|refund|core|damaged|broken|warranty|defective|exchange it"),
           ("BIL", r"invoice|bill|billing|charged|charge on|payment|pay|currency|exchange rate|credit card|overdue"),
           ("DLR", r"dealer|dealership|wholesale|tier|account terms|bulk")]
