@@ -114,7 +114,7 @@ PUBLIC_FIELDS = {
     "international_phone", "main_email", "faq_page", "matches", "question", "answer", "url", "score", "handoff",
     "reasons", "reason_given", "faq_suggestions", "interpreter_needed", "message_to_customer", "case_status", "next_step",
     # analytics layout and stock figures (money and cost figures are classified above)
-    "period", "scope", "scope_note", "as_of", "stock_as_of", "period_covers", "section_notes", "kpis", "label", "orders",
+    "period", "scope", "scope_note", "as_of", "as_of_display", "stock_as_of", "period_covers", "section_notes", "kpis", "label", "orders",
     "units_on_hand", "units_available",
     "units_in_transit", "units_missing", "units_backordered", "units_sold", "skus_needing_reorder",
     "skus_out_of_stock", "skus_stocked", "inventory_by_group", "inventory_by_warehouse", "low_stock",

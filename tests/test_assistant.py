@@ -223,6 +223,31 @@ def test_analytics_labels_stock_as_point_in_time(ids):
     assert "Stock counts (on hand, available, in transit, missing, low stock) are point in time" in         assistant.system_prompt(load_employee(ids["director"]))
 
 
+def test_as_of_times_are_shown_in_central(ids, client):
+    """As-of times reach the model and the screens as "Sun, Oct 11, 4:00 PM Central", never in UTC."""
+    from datetime import datetime, timezone
+    from app import dates
+    from tests.conftest import headers
+    central = "Sun, Oct 11, 4:00 PM Central"
+    assert dates.as_of_central() == central
+    assert dates.as_of_central(datetime(2026, 1, 15, 21, 0, tzinfo=timezone.utc)) == "Thu, Jan 15, 3:00 PM Central"   # CST
+    for role in ("director", "cs_sup"):                       # cs_sup: a restricted role, so redaction must keep it
+        d = json.loads(assistant.run_tool(load_employee(ids[role]), "analytics_summary",
+                                          {"period": "90", "sections": ["missing_by_group", "top_parts"]})[0])
+        assert d["as_of_display"] == d["stock_as_of"] == central
+        assert all(central in n for k, n in d["section_notes"].items() if k != "top_parts")
+        assert not any("UTC" in n for n in d["section_notes"].values())
+        prompt = assistant.system_prompt(load_employee(ids[role]))
+        data_line = next(line for line in prompt.splitlines() if line.startswith("Data is current as of"))
+        assert central in data_line and "UTC" not in data_line
+        assert "Give as-of times in Central" in prompt
+        assert "When a customer name isn't found, search once more at most" in prompt
+    for role in ("director", "cs_sup"):
+        h = headers(ids[role])
+        assert client.get("/api/me", headers=h).json()["as_of_display"] == central
+        assert client.get("/api/analytics", headers=h).json()["as_of_display"] == central
+
+
 def test_display_dates_follow_redaction(ids):
     from app import dates
     assert dates.display("2026-10-13") == "Tue, Oct 13"

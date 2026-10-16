@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import agent_tools as AT
-from . import analytics, assistant, db, demo, recommend, services
+from . import analytics, assistant, dates, db, demo, recommend, services
 from .auth import ROLE_LABEL, ROLE_OF_TITLE, Employee, current_employee, redact, require
 
 AT.DB_PATH = db.DB_PATH
@@ -88,7 +88,8 @@ def employees():
 @app.get("/api/me")
 def me(emp: Employee = Depends(current_employee)):
     co = db.one("SELECT * FROM company")
-    return {"employee": emp.public(), "company": co, "as_of": db.as_of().strftime("%Y-%m-%d %H:%M UTC")}
+    return {"employee": emp.public(), "company": co, "as_of": db.as_of().strftime("%Y-%m-%d %H:%M UTC"),
+            "as_of_display": dates.as_of_central()}
 
 
 # --------------------------------------------------------------------------- reference data

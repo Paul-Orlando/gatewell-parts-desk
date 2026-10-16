@@ -124,7 +124,7 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
                            start, *soa, *pca)
     kpis = {**(inv or {}), **(sales or {}), "units_sold": units_sold or 0}
 
-    stock_as_of = f"{dates.day(end.date(), year=True)}, {end:%H:%M} UTC"
+    stock_as_of = dates.as_of_central(end)
     if days:
         first = (end - timedelta(days=days)).date()
         period_covers = f"{first:%b} {first.day} – {end:%b} {end.day}, {end.year} (last {days} days)"
@@ -144,7 +144,7 @@ def dashboard(emp: Employee, period: str = "90", warehouse: str | None = None, c
     return dict(
         period=period, warehouse=warehouse or "All in your view", category=category or "All categories",
         note=CATEGORY_NOTE if category else None, scope=emp.scope_label(), scope_note=note,
-        as_of=end.strftime("%Y-%m-%d %H:%M UTC"), stock_as_of=stock_as_of, period_covers=period_covers,
+        as_of=end.strftime("%Y-%m-%d %H:%M UTC"), as_of_display=stock_as_of, stock_as_of=stock_as_of, period_covers=period_covers,
         section_notes=section_notes(stock_as_of, period_covers),
         kpis=kpis,
         inventory_by_group=db.rows(f"""SELECT s.category_group label, SUM(s.qty_on_hand) units, SUM(s.qty_available) available,

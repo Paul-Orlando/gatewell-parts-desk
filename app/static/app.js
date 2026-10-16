@@ -111,7 +111,7 @@ async function boot() {
   $("#app").hidden = false;
   $("#me-name").textContent = S.emp.name;
   $("#me-role").textContent = `${S.emp.title}, ${S.emp.scope_label}`;
-  $("#as-of").textContent = `Data as of ${me.as_of}`;
+  $("#as-of").textContent = `Data as of ${me.as_of_display}`;
   $("#signout").onclick = signOut;
   $("#menu-btn").onclick = () => $(".rail").classList.toggle("open");
   $("#drawer-close").onclick = closeDrawer;
@@ -602,7 +602,7 @@ async function viewAnalytics() {
     $("#an-wh").innerHTML = opt("", d.warehouses.length > 1 ? (S.emp.scope === "Company" ? "All warehouses" : `All in ${S.emp.scope_label.toLowerCase()}`) : d.warehouses[0], st.warehouse) + (d.warehouses.length > 1 ? d.warehouses.map((w) => opt(w, w, st.warehouse)).join("") : "");
     const wh = S.meta.warehouses.find((w) => w.warehouse_code === d.warehouse);
     const showing = [wh ? `${wh.city} (${wh.warehouse_code})` : "", d.category !== "All categories" ? d.category : ""].filter(Boolean);
-    $("#an-scope").textContent = `${showing.length ? `Showing: ${showing.join(", ")}. ` : ""}Your view: ${d.scope}. Data as of ${d.as_of}.`;
+    $("#an-scope").textContent = `${showing.length ? `Showing: ${showing.join(", ")}. ` : ""}Your view: ${d.scope}. Data as of ${d.as_of_display}.`;
     const k = d.kpis, cost = has(k, "stock_value_usd"), split = !d.note;   // split = shipping and FX can be shown
     const period = { 30: "last 30 days", 90: "last 90 days", 365: "last 12 months", all: "all time" }[st.period]
       + (st.category ? `, ${st.category} only` : "");

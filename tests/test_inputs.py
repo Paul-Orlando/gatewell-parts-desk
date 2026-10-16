@@ -81,7 +81,7 @@ def test_plural_search_words_find_singular_part_names(ids):
 
 
 # --------------------------------------------------------------------------- analytics sections (live test fix F)
-META = {"period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "warehouses", "stock_as_of",
+META = {"period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "as_of_display", "warehouses", "stock_as_of",
         "period_covers", "section_notes"}
 
 

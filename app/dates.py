@@ -1,6 +1,7 @@
 """Display dates in the app's one style: "Wed, Oct 14", with the year only when it isn't the data year."""
 import re
 from datetime import date, datetime
+from zoneinfo import ZoneInfo
 
 from . import db
 
@@ -13,6 +14,12 @@ def day(d: date, year: bool | None = None) -> str:
     if year is None:
         year = d.year != db.as_of().year
     return f"{d:%a}, {d:%b} {d.day}" + (f", {d.year}" if year else "")
+
+
+def as_of_central(dt: datetime | None = None) -> str:
+    """The data's as-of time the way the app shows it: "Sun, Oct 11, 4:00 PM Central" (CDT or CST)."""
+    t = (dt or db.as_of()).astimezone(ZoneInfo("America/Chicago"))
+    return f"{day(t.date())}, {t.strftime('%I:%M %p').lstrip('0')} Central"
 
 
 def display(value) -> str | None:

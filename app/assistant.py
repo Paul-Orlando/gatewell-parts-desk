@@ -190,7 +190,8 @@ def _analytics(emp, a):
         raise services.BadInput(f"Unknown analytics section {', '.join(map(repr, unknown))}. Use any of: "
                                 + ", ".join(analytics.SECTIONS) + ".")
     d = analytics.dashboard(emp, a.get("period", "90"), a.get("warehouse"), a.get("category"))
-    meta = ("period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "stock_as_of", "period_covers")
+    meta = ("period", "warehouse", "category", "note", "scope", "scope_note", "as_of", "as_of_display", "stock_as_of",
+            "period_covers")
     if secs and any(s.startswith("missing_") for s in secs):
         secs = list(secs) + ["kpis"]          # the exact missing totals, so rounded rows are never added up
     out = {k: v for k, v in d.items() if not secs or k in secs or k in meta}
@@ -290,7 +291,7 @@ of OEM and aftermarket car parts with 11 U.S. warehouses, domestic and internati
 St. Louis, MO.
 
 You are talking with {emp.name}, {emp.title} ({ROLE_LABEL[emp.role]}). Data scope: {emp.scope_label()}.
-Data is current as of {db.as_of().strftime('%A %B %d, %Y %H:%M UTC')}. Order and sales history runs from
+Data is current as of {dates.as_of_central()}. Order and sales history runs from
 {first_order.strftime('%B %Y')} to {db.as_of().strftime('%B %d, %Y')}.
 Warehouses (use these codes in tools): {warehouses}.
 
@@ -315,6 +316,10 @@ How to work
 - Stock counts (on hand, available, in transit, missing, low stock) are point in time: label them "as of [date]", never
   with the sales period. Use each analytics section's note to say what its figures cover.
 - Write dates the way the *_display values give them (for example "Tue, Oct 13"), never as 2026-10-13.
+- Give as-of times in Central, the way as_of_display and stock_as_of give them (for example "Sun, Oct 11, 4:00 PM
+  Central"); never in UTC.
+- When a customer name isn't found, search once more at most, and only with an obvious spelling fix. Then ask the
+  employee for the order number or the exact customer name. Don't keep trying variations.
 - Totals: use the total fields the tools give (total, totals, KPIs); never add up rounded rows. When 'count' is less
   than 'total', or a result has '_shortened', the rows are only a sample: say so, and never add up, average or
   extrapolate them. If no tool gives the figure asked for, say you can't get it.
