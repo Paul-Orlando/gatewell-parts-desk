@@ -440,7 +440,9 @@ def support_contact(department_id=None, topic=None, customer_timezone="America/N
     d = _one(c, "SELECT * FROM support_departments WHERE department_id = ?", dept)
     co = _one(c, "SELECT * FROM company")
     tz = ZoneInfo(customer_timezone)
-    fmt = lambda dt: dt.astimezone(tz).strftime("%A %b %d, %I:%M %p").replace(" 0", " ") + f" ({customer_timezone})"
+    # "Mon, Oct 12, 8:00 AM Central", like the Support teams page; other time zones keep their name
+    label = " Central" if customer_timezone == "America/Chicago" else f" ({customer_timezone})"
+    fmt = lambda dt: (lambda l: f"{l:%a}, {l:%b} {l.day}, {l.strftime('%I:%M %p').lstrip('0')}{label}")(dt.astimezone(tz))
     open_now = _is_open(d, now)
     out = dict(department_id=dept, department=d["department_name"], phone=d["phone"], email=d["email"],
                languages=d["languages"], handles=d["handles"], open_now=open_now,

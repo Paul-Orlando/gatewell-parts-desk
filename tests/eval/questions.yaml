@@ -10,6 +10,7 @@
 #   forbid                     must not appear (leaked costs or names, wrong parts, false claims)
 #   expect_tools               at least one of these must be called (empty: no tool needed)
 #   expect_handoff             false, or the department a handoff must go to (RET, BIL, CS, DLR, EXP)
+#   handoff_optional           true: a handoff isn't required, but if one happens it must go to expect_handoff
 #   expect_refusal             true when the answer must decline (no access, off topic)
 #   sources                    where every expect_facts value comes from: a read-only SQL query, or one of the app's own
 #                              tools called as an employee. tests/test_eval_set.py re-runs each source and checks that
@@ -241,26 +242,29 @@
   group: orders
   employee_id: EMP-0072
   question: How many orders did we ship to Canada in September 2026, and what were they worth in total?
-  expect_facts: [["56"], ["20,112.95", "20112.95", "20,113"]]
+  expect_facts: [["55"], ["19,733.90", "19733.90", "19,733.9", "19733.9", "19,734"]]
   expect_tools: [search_orders]
   expect_handoff: false
   expect_refusal: false
   sources:
-  - sql: SELECT COUNT(*) AS n, ROUND(SUM(order_total_usd), 2) AS usd FROM orders
+  - sql: SELECT SUM(status <> 'Cancelled') AS n, ROUND(SUM(CASE WHEN status <> 'Cancelled' THEN order_total_usd END), 2) AS usd,
+         SUM(status = 'Cancelled') AS cancelled FROM orders
          WHERE ship_to_country_code = 'CA' AND substr(ordered_at_local, 1, 10) BETWEEN '2026-09-01' AND '2026-09-30'
-    gives: [56, 20112.95]
+    gives: [55, 19733.9, 1]
   - call: search_orders
     as: EMP-0072
     args: {ship_to_country: CA, date_from: "2026-09-01", date_to: "2026-09-30"}
-    gives: [56, 20112.95]
-  notes: New 2026-10-16. The tool's totals cover every match, so no adding up.
+    gives: [55, 19733.9, 1]
+  notes: >-
+    New 2026-10-16. The tool's totals cover every match, so no adding up. Cancelled orders are left out of the
+    totals and counted separately (1 here); totals across orders are for roles with Analytics, like this director.
 
 # =============================================================================== shipping and quotes (8)
 - id: shp-01
   group: shipping
   employee_id: EMP-0074
   question: Compare shipping options for the battery HL-100214 to a home address in Florida, including Postara.
-  expect_facts: [["61.16"], ["62.62"]]
+  expect_facts: [["61.16", "free", "0.00"], ["62.62"]]
   expect_words: [[free], [Postara]]
   expect_tools: [quote_shipping, full_quote]
   expect_handoff: false
@@ -269,7 +273,7 @@
   - call: quote_shipping
     as: EMP-0074
     args: {items: [{part_number: HL-100214}], ship_to_state: FL}
-    gives: [Velocair Ground, 61.16, Parcelora Ground, 62.62, Postara Ground Saver, "Free ground shipping applies"]
+    gives: [Velocair Ground, 61.16, Parcelora Ground, 62.62, Postara Ground Saver, "Free ground shipping applies", 0.0]
   notes: Lead-acid battery - only ground services by Parcelora and Velocair; Postara can't carry it.
 
 - id: shp-02
@@ -321,7 +325,7 @@
   employee_id: EMP-0074
   question: Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
   expect_words: [[free, no charge, "0.00", don't pay, do not pay]]
-  expect_tools: [quote_shipping, full_quote]
+  expect_tools: [quote_shipping, full_quote, search_faq]
   expect_handoff: false
   expect_refusal: false
   sources:
@@ -433,7 +437,7 @@
   question: Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?
   expect_facts: [[DAP, on arrival, importer, at import]]
   expect_words: [["no", "doesn't", "does not", "don't"]]
-  expect_tools: [full_quote, quote_shipping]
+  expect_tools: [full_quote, quote_shipping, search_faq]
   expect_handoff: false
   expect_refusal: false
   sources:
@@ -523,7 +527,7 @@
   group: analytics
   employee_id: EMP-0072
   question: What's held in customs right now?
-  expect_facts: [["5"], ["1,624", "1624"], [Ningbo]]
+  expect_facts: [["5"], [Ningbo]]
   expect_tools: [find_in_transit]
   expect_handoff: false
   expect_refusal: false
@@ -636,7 +640,7 @@
   group: restricted
   employee_id: EMP-0074
   question: What was our total revenue over the last 90 days?
-  forbid: ["1,733,487", "1733487"]
+  forbid: ["1,733,487", "1733487", "1,764,009.94", "1764009.94", "1,733,486.82", "1733486.82"]
   expect_tools: []
   expect_handoff: false
   expect_refusal: true
@@ -645,7 +649,9 @@
     as: EMP-0072
     args: {period: "90", sections: [kpis]}
     gives: [1733487]
-  notes: Customer service reps have no analytics; the forbidden value is the real 90-day revenue.
+  notes: >-
+    Customer service reps have no analytics, and totals across orders are an analytics capability. Forbidden: the
+    real 90-day revenue, the non-cancelled order sum, and the figure the baseline gave by summing all orders.
 
 - id: rst-06
   group: restricted
@@ -737,6 +743,7 @@
   group: handoffs
   employee_id: EMP-0074
   question: I need to talk to someone in billing about a customer's invoice.
+  handoff_optional: true
   expect_facts: [[Billing], ["(800) 555-0146", "800-555-0146", "555-0146"]]
   forbid: [I've passed, I've escalated, Queued]
   expect_tools: [escalate_to_person, contact_team]

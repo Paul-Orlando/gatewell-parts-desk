@@ -116,7 +116,7 @@ PUBLIC_FIELDS = {
     "reasons", "reason_given", "faq_suggestions", "interpreter_needed", "message_to_customer", "case_status", "next_step",
     "teams", "hours",
     # analytics layout and stock figures (money and cost figures are classified above)
-    "period", "scope", "scope_note", "as_of", "as_of_display", "stock_as_of", "section_totals", "missing_by_warehouse", "how_to_read",
+    "period", "scope", "scope_note", "as_of", "as_of_display", "stock_as_of", "section_totals", "missing_by_warehouse", "how_to_read", "partial", "cancelled_orders", "next_open_customer_local", "closes_at_customer_local",
     "skus_missing", "period_covers", "section_notes", "kpis", "label", "orders",
     "units_on_hand", "units_available",
     "units_in_transit", "units_missing", "units_backordered", "units_sold", "skus_needing_reorder",

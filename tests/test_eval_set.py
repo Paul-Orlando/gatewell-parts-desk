@@ -66,6 +66,8 @@ def test_shape_and_group_counts():
         assert bool(q.get("question")) != bool(q.get("turns")), q["id"]
         assert q["expect_handoff"] is False or q["expect_handoff"] in DEPARTMENTS, q["id"]
         assert isinstance(q["expect_refusal"], bool), q["id"]
+        if q.get("handoff_optional"):
+            assert q["expect_handoff"] in DEPARTMENTS, f"{q['id']}: handoff_optional needs a department"
         if q.get("expect_facts"):
             assert q.get("sources"), f"{q['id']}: facts need a source"
 

@@ -288,11 +288,13 @@ def test_search_orders_totals_cover_every_match(ids):
     emp = load_employee(ids["director"])
     text, is_err = assistant.run_tool(emp, "search_orders", {"warehouse": "NWK", "limit": 5})
     d = json.loads(text)
-    assert not is_err and d["count"] < d["total"] and d["totals"]["orders"] == d["total"]
-    exact = db.scalar("SELECT ROUND(SUM(order_total_usd), 2) FROM orders WHERE fulfillment_warehouse = 'NWK'")
-    assert d["totals"]["order_total_usd"] == exact
+    assert not is_err and d["count"] < d["total"] and d["partial"]
+    exact = db.one("""SELECT SUM(status <> 'Cancelled') n, ROUND(SUM(CASE WHEN status <> 'Cancelled' THEN order_total_usd END), 2) usd,
+                             SUM(status = 'Cancelled') cancelled FROM orders WHERE fulfillment_warehouse = 'NWK'""")
+    assert d["totals"] == {"orders": exact["n"], "order_total_usd": exact["usd"], "cancelled_orders": exact["cancelled"]}
+    assert exact["cancelled"] > 0 and d["totals"]["orders"] + d["totals"]["cancelled_orders"] == d["total"]
     wh = json.loads(assistant.run_tool(load_employee(ids["warehouse"]), "search_orders", {"limit": 5})[0])
-    assert "orders" in wh["totals"] and "order_total_usd" not in wh["totals"]          # money stays hidden
+    assert "totals" not in wh                                                           # no analytics, no totals
 
 
 def test_oversized_results_drop_whole_sections_and_stay_valid_json(ids):
@@ -308,10 +310,11 @@ def test_search_orders_by_country_and_date_range_totals_match(client, ids):
     emp = load_employee(ids["director"])
     a = {"ship_to_country": "ca", "date_from": "2026-09-01", "date_to": "2026-09-30", "limit": 3}
     d = json.loads(assistant.run_tool(emp, "search_orders", a)[0])
-    exact = db.one("""SELECT COUNT(*) n, ROUND(SUM(order_total_usd), 2) usd FROM orders
+    exact = db.one("""SELECT COUNT(*) n, SUM(status <> 'Cancelled') live, SUM(status = 'Cancelled') cancelled,
+                             ROUND(SUM(CASE WHEN status <> 'Cancelled' THEN order_total_usd END), 2) usd FROM orders
                       WHERE ship_to_country_code = 'CA' AND substr(ordered_at_local, 1, 10) BETWEEN '2026-09-01' AND '2026-09-30'""")
-    assert d["total"] == d["totals"]["orders"] == exact["n"] > d["count"]
-    assert d["totals"]["order_total_usd"] == exact["usd"]
+    assert d["total"] == exact["n"] > d["count"]
+    assert d["totals"] == {"orders": exact["live"], "order_total_usd": exact["usd"], "cancelled_orders": exact["cancelled"]}
     assert all(r["ship_to_country"] == "Canada" for r in d["results"])
     day = db.scalar("SELECT COUNT(*) FROM orders WHERE substr(ordered_at_local, 1, 10) = '2026-10-05'")
     one = client.get("/api/orders", params={"date_from": "2026-10-05", "date_to": "2026-10-05"}, headers=headers(ids["director"])).json()
@@ -327,8 +330,85 @@ def test_order_filters_keep_scope_and_hide_money_from_warehouse_roles(client, id
     api = client.get("/api/orders", params=params, headers=headers(ids["warehouse"])).json()
     tool = json.loads(assistant.run_tool(load_employee(ids["warehouse"]), "search_orders", {**params, "limit": 5})[0])
     for d in (api, tool):
-        assert d["total"] > 0 and not money & set(d["totals"])
+        assert d["total"] > 0 and "totals" not in d                                    # no analytics, no totals
         assert all(not money & set(r) for r in d["results"])
     exact = db.scalar("""SELECT COUNT(*) FROM orders WHERE fulfillment_warehouse = 'ATL' AND ship_to_country_code = 'US'
                          AND substr(ordered_at_local, 1, 10) BETWEEN '2026-09-01' AND '2026-10-11'""")
     assert api["total"] == tool["total"] == exact                                       # still only ATL
+
+
+
+# --------------------------------------------------------------------------- baseline eval fixes (2026-10-16)
+def _parts(emp, **a):
+    from app import services
+    d = services.search_inventory(emp, **a)
+    return d, [r["part_number"] for r in d["results"]]
+
+
+def test_engine_words_match_like_people_type_them(ids):
+    """stk-02 and stk-03: the engine as the question words it."""
+    cs = load_employee(ids["cs"])
+    torvik = dict(q="spark plugs", year=2015, make="Halvard", model="Torvik")
+    for engine, want in (("3.5L Twin-Turbo", {"HB-94558", "HL-100183"}), ("3.5 twin turbo", {"HB-94558", "HL-100183"}),
+                         ("5.0 V8", {"BW-80690", "HL-100182"}), ("5.0L V8", {"BW-80690", "HL-100182"})):
+        d, pns = _parts(cs, **torvik, engine=engine)
+        assert set(pns) == want and "engines" not in d, engine
+    d, _ = _parts(cs, q="spark plugs", year=2018, make="Halvard", engine="2.0L I4")       # exact beats '2.0L I4 Turbo'
+    assert "engines" not in d and d["total"] == 3
+    d, _ = _parts(cs, q="spark plugs", year=2018, make="Halvard", engine="3.5")           # two engines: ask which
+    assert d["engines"] == ["3.5L V6", "3.5L V6 Twin-Turbo"] and "matches several engines" in d["note"]
+    d, pns = _parts(cs, **torvik, engine="V12")                                           # none: list the vehicle's
+    assert d["engines"] == ["2.7L V6 Twin-Turbo", "3.5L V6 Twin-Turbo", "5.0L V8"] and len(pns) == 6
+    assert "No engine matches 'V12'" in d["note"]
+
+
+def test_vehicle_names_and_years_typed_into_the_wrong_field(ids):
+    """stk-03 and int-05: a model name given as the make, and a year given in the model field."""
+    cs = load_employee(ids["cs"])
+    d, pns = _parts(cs, q="spark plugs", year=2015, make="Torvik")
+    assert len(pns) == 6 and "Read 'Torvik' as the Halvard Torvik." in d["note"] and d["engines"]
+    for a in ({"make": "Torvik", "model": "2018"}, {"model": "Torvik 2018"}, {"make": "halvard", "model": "torvik 2018"}):
+        d, pns = _parts(cs, q="front strut", **a)
+        assert set(pns) == {"HL-100396", "OST-47241"}, a
+    d, pns = _parts(cs, q="brake pads", year=2019, make="Honda", model="Civic")
+    assert pns == [] and "No make 'Honda' in our catalog" in d["note"] and "Ferra Motors" in d["note"]
+
+
+def test_partial_results_say_so_and_the_prompt_forbids_calling_them_complete(ids):
+    cs = load_employee(ids["cs"])
+    d, pns = _parts(cs, year=2015, make="Halvard", model="Torvik")
+    assert d["partial"] and len(pns) == 50 < d["total"]
+    assert f"Showing 50 of {d['total']} matching parts. This list is cut short: narrow by category, engine or year" in d["note"]
+    d, _ = _parts(cs, q="spark plugs", year=2015, make="Halvard", model="Torvik", engine="5.0 V8")
+    assert "partial" not in d
+    for role in ("cs", "cs_sup", "warehouse", "director"):
+        assert "Never say a list is complete, or that nothing else matches, when a tool says it was cut short" in \
+            assistant.system_prompt(load_employee(ids[role]))
+
+
+def test_order_totals_only_for_analytics_roles(client, ids):
+    """rst-05: totals across orders are an analytics capability; CS reps get row totals but no aggregate."""
+    from conftest import headers as h
+    rows = json.loads(assistant.run_tool(load_employee(ids["cs"]), "search_orders", {"days": 90, "limit": 5})[0])
+    api = client.get("/api/orders", params={"days": 90}, headers=h(ids["cs"])).json()
+    for d in (rows, api):
+        assert "totals" not in d and d["total"] > 0
+        assert all("order_total_usd" in r for r in d["results"])                      # each order's own total stays
+    sup = client.get("/api/orders", params={"days": 90}, headers=h(ids["cs_sup"])).json()
+    assert {"orders", "order_total_usd", "cancelled_orders"} <= set(sup["totals"])
+    cs_prompt = assistant.system_prompt(load_employee(ids["cs"]))
+    assert "come from Analytics, which this role doesn't have. Say a supervisor or manager can get them" in cs_prompt
+    assert "come from Analytics, which this role" not in assistant.system_prompt(load_employee(ids["cs_sup"]))
+
+
+def test_team_hours_in_central_for_every_employee(ids):
+    """hnd-04: hours read like the Support teams page, whatever the employee's warehouse."""
+    for role in ("cs", "warehouse"):
+        emp = load_employee(ids[role])
+        c = json.loads(assistant.run_tool(emp, "contact_team", {"department_id": "RET"})[0])
+        h = json.loads(assistant.run_tool(emp, "escalate_to_person", {"question": "refund 400", "refund_amount_usd": 400})[0])
+        assert c["next_open"] == h["contact"]["next_open"] == "Mon, Oct 12, 8:00 AM Central", role
+        assert "Mon, Oct 12, 8:00 AM Central" in h["message_to_customer"]
+    c = json.loads(assistant.run_tool(load_employee(ids["cs"]), "contact_team",
+                                      {"department_id": "EXP", "customer_timezone": "Asia/Riyadh"})[0])
+    assert c["next_open"].endswith("Central") and c["next_open_customer_local"].endswith("(Asia/Riyadh)")

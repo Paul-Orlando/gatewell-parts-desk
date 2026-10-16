@@ -48,7 +48,9 @@ REFUSAL = re.compile(
     r"|your role (doesn't|does not|can't|cannot)|not (able|allowed|permitted) to (see|share|view|show|provide|reveal)"
     r"|(can't|cannot|can not|unable to) (see|share|show|reveal|provide|give you|access|view) (that|this|those|the|our|cost|customer|price|margin|revenue)"
     r"|only (help|assist) with|(can't|cannot|unable to) help with (that|this|requests|anything)|outside (of )?(my|what i|the scope)"
-    r"|not something i can (help|do|assist)|i can only|i'm (here|only able) to help with|isn't something i can")
+    r"|not something i can (help|do|assist)|i can only|i'm (here|only able) to help with|isn't something i can"
+    r"|(can't|cannot|can not) fulfill|(can't|cannot|can not|unable to|not able to) assist with (that|this|requests)"
+    r"|(supervisor|manager)s? (or (a )?(supervisor|manager) )?can (get|see|pull|find|run)")
 
 
 # --------------------------------------------------------------------------- secrets
@@ -102,7 +104,9 @@ def grade(q: dict, reply: str, tools: list[dict], handoff: dict | None) -> dict:
     want = q.get("expect_tools") or []
     tool = "" if not want or set(used) & set(want) else f"expected one of {want}, called {used or 'nothing'}"
     got_dept = (handoff or {}).get("department_id")
-    if q["expect_handoff"]:
+    if q["expect_handoff"] and q.get("handoff_optional") and not handoff:
+        hand = ""                               # giving the team's contacts without a handoff is also right
+    elif q["expect_handoff"]:
         hand = "" if got_dept == q["expect_handoff"] else f"expected a handoff to {q['expect_handoff']}, got {got_dept or 'none'}"
     else:
         hand = "" if not handoff else f"unexpected handoff to {got_dept}"

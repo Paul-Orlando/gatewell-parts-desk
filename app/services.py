@@ -5,6 +5,7 @@ Every function takes the signed-in Employee, applies their data scope, and retur
 dicts. Callers pass results through auth.redact() before anything leaves the server, so the
 screens and the assistant can never show an employee more than their role allows.
 """
+import re
 from datetime import date, datetime
 
 from . import db
@@ -98,6 +99,46 @@ def vehicle_options(make: str | None = None, model: str | None = None) -> dict:
 
 
 # --------------------------------------------------------------------------- inventory
+YEAR_IN_TEXT = re.compile(r"\b(?:19[5-9]\d|20[0-4]\d)\b")
+
+
+def _engine_words(text: str) -> frozenset:
+    """'3.5L V6 Twin-Turbo' -> {'3.5', 'v6', 'twin', 'turbo'}: case, a size's trailing L and hyphens don't matter."""
+    words = re.sub(r"[-_,/]", " ", str(text or "").lower()).split()
+    return frozenset(re.sub(r"^(\d+(?:\.\d+)?)l$", r"\1", w) for w in words if w)
+
+
+def _match_engines(asked: str, candidates: list[str]) -> list[str]:
+    """Engines that match what was asked: an exact word match wins ('2.0L I4' isn't '2.0L I4 Turbo'); otherwise every
+    engine that has all the asked words ('3.5L Twin-Turbo' -> '3.5L V6 Twin-Turbo'; '3.5' may match several)."""
+    want = _engine_words(asked)
+    if not want:
+        return []
+    exact = [e for e in candidates if _engine_words(e) == want]
+    return exact or [e for e in candidates if want <= _engine_words(e)]
+
+
+def _resolve_vehicle(make: str | None, model: str | None) -> tuple[str | None, str | None, str | None]:
+    """Our make and model names for what was typed (any case). A model name given as the make ('Torvik') is read as
+    that make and model. Returns (make, model, note); an unknown make returns make None and a note listing ours."""
+    makes = {r["make"].lower(): r["make"] for r in db.rows("SELECT DISTINCT make FROM vehicles")}
+    models = {r["model"].lower(): (r["make"], r["model"]) for r in db.rows("SELECT DISTINCT make, model FROM vehicles")}
+    note = None
+    m = (make or "").strip()
+    if m:
+        if m.lower() in makes:
+            make = makes[m.lower()]
+        elif m.lower() in models and (not model or model.strip().lower() == m.lower()):
+            make, model = models[m.lower()]
+            note = f"Read '{m}' as the {make} {model}."
+        else:
+            return None, None, (f"No make '{m}' in our catalog. Our makes: {', '.join(sorted(makes.values()))}. "
+                                "Ask which one they mean.")
+    if model and model.strip().lower() in models:
+        model = models[model.strip().lower()][1]
+    return make, model, note
+
+
 def search_inventory(emp: Employee, q: str | None = None, year: int | None = None, make: str | None = None,
                      model: str | None = None, category: str | None = None, warehouse: str | None = None,
                      stock_filter: str | None = None, limit: int = 50, engine: str | None = None) -> dict:
@@ -110,6 +151,21 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
     warehouse = warehouse_code(warehouse)
     category = _choice(category, categories(), "category")
     stock_filter = _choice(stock_filter, STOCK_FILTERS, "stock filter")
+    pre_notes = []
+    if make or model:
+        # a year typed into the make or model ('Torvik 2018', model '2018') is the year filter
+        years = [y for s in (make, model) if s for y in YEAR_IN_TEXT.findall(str(s))]
+        if years and not year:
+            year = int(years[0])
+        make = YEAR_IN_TEXT.sub("", make or "").strip() or None
+        model = YEAR_IN_TEXT.sub("", model or "").strip() or None
+    if make or model:
+        make, model, vnote = _resolve_vehicle(make, model)
+        if vnote and make is None:                 # unknown make: say so, list ours
+            return {"count": 0, "total": 0, "totals": {}, "warehouse": warehouse or "All warehouses", "results": [],
+                    "note": vnote}
+        if vnote:
+            pre_notes.append(vnote)
     where, args = ["p.status = 'Active'"], []
     for w in _words(q):
         where.append("(s.part_number LIKE ? OR s.part_name LIKE ? OR s.brand LIKE ? OR s.fits_summary LIKE ? OR s.category LIKE ?)")
@@ -119,7 +175,21 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
         if year: sub.append("v.year = ?"); sargs.append(int(year))
         if make: sub.append("v.make = ?"); sargs.append(make)
         if model: sub.append("v.model = ?"); sargs.append(model)
-        if engine and engine.strip(): sub.append("v.engine LIKE ?"); sargs.append(f"%{engine.strip()}%")
+        engine_note, matched = None, None
+        if engine and engine.strip():
+            cands = [r["engine"] for r in db.rows(
+                f"SELECT DISTINCT v.engine FROM vehicles v WHERE {' AND '.join(sub) or '1=1'} ORDER BY v.engine", *sargs)]
+            matched = _match_engines(engine, cands)
+            if len(matched) == 1:
+                sub.append("v.engine = ?"); sargs.append(matched[0])
+            elif matched:
+                sub.append(f"v.engine IN ({','.join('?' * len(matched))})"); sargs += matched
+                engine_note = (f"'{engine.strip()}' matches several engines ({', '.join(matched)}). "
+                               "Ask which one before listing parts.")
+            else:
+                engine_note = (f"No engine matches '{engine.strip()}' for this vehicle. It has: {', '.join(cands) or 'none'}. "
+                               "Ask which one.")
+                matched = cands
         where.append(f"s.part_id IN (SELECT f.part_id FROM part_fitment f JOIN vehicles v USING (vehicle_id) WHERE {' AND '.join(sub)})")
         args += sargs
     if category:
@@ -154,10 +224,15 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
                    FROM ({grouped})""", *args)
     out = {"count": len(results), "total": t.pop("parts"), "totals": t, "warehouse": warehouse or "All warehouses",
            "results": results}
-    notes = []
+    notes = list(pre_notes)
     if out["total"] > len(results):
-        notes.append(f"Showing {len(results)} of {out['total']} matching parts; 'totals' covers all of them. Don't add up "
-                     "or extrapolate the rows shown.")
+        out["partial"] = True
+        notes.append(f"Showing {len(results)} of {out['total']} matching parts. This list is cut short: narrow by category, "
+                     "engine or year (or a part number) before listing parts, and never present these rows as complete. "
+                     "'totals' covers all matches; don't add up or extrapolate the rows shown.")
+    if sub and engine and engine.strip() and engine_note:
+        out["engines"] = matched
+        notes.append(engine_note)
     if sub and not (engine and engine.strip()):
         fit = db.rows(f"""SELECT DISTINCT f.part_id, v.engine FROM part_fitment f JOIN vehicles v USING (vehicle_id)
                           WHERE {' AND '.join(sub)} AND f.part_id IN (SELECT part_id FROM ({grouped}))""", *sargs, *args)
@@ -300,10 +375,16 @@ def search_orders(emp: Employee, q: str | None = None, status: str | None = None
     base = f"FROM orders o JOIN customers c USING (customer_id) WHERE {' AND '.join(where)} {sc}"
     res = db.rows(f"SELECT {ORDER_LIST_COLS} {base} ORDER BY o.ordered_at_utc DESC LIMIT ?", *args, *sa, int(limit))
     total = db.scalar(f"SELECT COUNT(*) {base}", *args, *sa)
-    # totals over every match, not just the rows shown (USD only: local totals are in mixed currencies)
-    sums = db.one(f"SELECT COUNT(*) orders, ROUND(SUM(o.order_total_usd), 2) order_total_usd {base}", *args, *sa)
-    out = {"count": len(res), "total": total, "totals": sums, "results": res}
+    out = {"count": len(res), "total": total, "results": res}
+    # Totals across many orders are an analytics capability: only roles with Analytics get them. Over every match,
+    # not just the rows shown; cancelled orders are left out of the total and counted separately (USD only: local
+    # totals are in mixed currencies).
+    if emp.perms["analytics"]:
+        out["totals"] = db.one(f"""SELECT SUM(o.status <> 'Cancelled') orders,
+                                          ROUND(SUM(CASE WHEN o.status <> 'Cancelled' THEN o.order_total_usd END), 2) order_total_usd,
+                                          SUM(o.status = 'Cancelled') cancelled_orders {base}""", *args, *sa)
     if total > len(res):
+        out["partial"] = True
         out["note"] = (f"Showing the latest {len(res)} of {total} matching orders. These rows are a sample: don't add up, "
                        "average or extrapolate them to describe all matches.")
     return out
