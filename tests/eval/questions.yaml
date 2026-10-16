@@ -714,6 +714,7 @@
       - returns@gatewellautoparts.example
     - - tell the customer
       - let the customer know
+      - advise the customer
     - - support case
     exclude:
     - I have provided the customer

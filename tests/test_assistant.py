@@ -181,3 +181,15 @@ def test_prompt_rules_from_the_retest(ids):
         assert "State tax, duty and policy details exactly as the tools give them" in text        # 2: no added details
         assert "look that part up for that warehouse" in text                                     # 3: drill into the warehouse
     assert "has a note saying how many days late" in assistant.TOOL_BY_NAME["find_in_transit"]["description"]
+
+
+def test_prompt_examples_use_plain_words(ids):
+    """Step 3: worked examples for asking the engine, listing options, taxed totals and handoffs, with no tool,
+    section or data values in them (the numbers must come from lookups, not from the prompt)."""
+    from app import analytics
+    for role in ("cs", "warehouse", "director"):
+        text = assistant.system_prompt(load_employee(ids[role]))
+        ex = text[text.index("Examples of good answers"):text.index("Access rules")]
+        assert "Which engine does it have" in ex and "list both" in ex and "full quote" in ex and "$250" in ex
+        assert not any(name in ex for name in [t["name"] for t in assistant.TOOLS] + list(analytics.SECTIONS))
+        assert ("open a support case" in ex) == (role == "cs")
