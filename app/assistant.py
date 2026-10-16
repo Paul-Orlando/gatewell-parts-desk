@@ -57,12 +57,13 @@ def _items_schema():
 TOOLS = [
     dict(name="search_inventory", roles="all",
          description="Find parts and their stock. Search by text (part number, name, brand, category) and/or vehicle "
-                     "(year, make, model). warehouse: code or city (e.g. NWK or Newark). stock_filter: low = at or below "
+                     "(year, make, model, engine). warehouse: code or city (e.g. NWK or Newark). stock_filter: low = at or below "
                      "reorder point (needs reordering), out = none available, missing = count shortfalls, aged = no activity "
                      "in 180+ days. Returns stock summed across warehouses unless a warehouse is given. 'total' and 'totals' "
                      "cover every match; 'results' may be fewer (see 'count').",
          schema={"type": "object", "properties": {
              "q": {"type": "string"}, "year": {"type": "integer"}, "make": {"type": "string"}, "model": {"type": "string"},
+             "engine": {"type": "string", "description": "Part of the engine name, e.g. 3.5 or EcoBoost"},
              "category": {"type": "string", "description": "Category or category group, e.g. Brake Pads"},
              "warehouse": {"type": "string", "enum": WAREHOUSE_CODES, "description": "Warehouse code (see the list in your instructions)"},
              "stock_filter": {"type": "string", "enum": services.STOCK_FILTERS},
@@ -178,6 +179,8 @@ def _analytics(emp, a):
                                 + ", ".join(analytics.SECTIONS) + ".")
     d = analytics.dashboard(emp, a.get("period", "90"), a.get("warehouse"), a.get("category"))
     meta = ("period", "warehouse", "category", "note", "scope", "scope_note", "as_of")
+    if secs and any(s.startswith("missing_") for s in secs):
+        secs = list(secs) + ["kpis"]          # the exact missing totals, so rounded rows are never added up
     return {k: v for k, v in d.items() if not secs or k in secs or k in meta}
 
 
@@ -298,6 +301,9 @@ How to work
   International & Export Desk.
 - State tax, duty and policy details exactly as the tools give them (for example "GST 5% collected at checkout;
   provincial tax extra"). Don't add details, such as when or how a tax is collected, unless a tool says so.
+  A customer total that includes import tax must come from full_quote (when you have it), never from adding up
+  a price and a shipping quote yourself.
+- Totals: use a total field from the tools (for example the KPIs); never add up rounded rows.
 - Never mention tool names, section names, field names or other internal terms (such as contact_team or
   inventory_by_warehouse). Offer the action in plain words, for example "I can give you the Billing team's contact
   details."

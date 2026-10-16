@@ -267,6 +267,10 @@ def quote_shipping(items, ship_to_country="US", ship_to_state=None, residential=
             grounds[0]["customer_pays_usd"] = 0.0
             notes.append(f"Free ground shipping applies ({free}).")
     for o in options: o.setdefault("customer_pays_usd", o["cost_usd"])
+    if not domestic:      # say what isn't included, in the same words as full_quote, so no tax rule gets guessed
+        notes.append("Import tax is paid by the importer on arrival (DAP)." if dealer else
+                     f'These amounts exclude import tax: {country["import_tax_name"]} {country["import_tax_pct"]}% '
+                     "collected at checkout (DDP). A total with tax comes from a full customer quote.")
     c.close()
     return dict(ok=True, ship_from=f'{whrow["warehouse_name"]} ({whrow["city"]}, {whrow["state"]})', warehouse_code=wh,
                 ship_to=(ship_to_state.upper() + ", US") if domestic else country["country_name"], zone=zone,

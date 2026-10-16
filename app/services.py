@@ -100,10 +100,13 @@ def vehicle_options(make: str | None = None, model: str | None = None) -> dict:
 # --------------------------------------------------------------------------- inventory
 def search_inventory(emp: Employee, q: str | None = None, year: int | None = None, make: str | None = None,
                      model: str | None = None, category: str | None = None, warehouse: str | None = None,
-                     stock_filter: str | None = None, limit: int = 50) -> dict:
+                     stock_filter: str | None = None, limit: int = 50, engine: str | None = None) -> dict:
     """Parts matching a text search and/or vehicle, with stock totals (company-wide or one warehouse).
     stock_filter: low (at or below reorder point), out (none available), missing (count shortfalls), aged (no activity 180+ days).
-    'count' is the rows returned; 'total' and 'totals' cover every match, so a capped list is never mistaken for all of it."""
+    engine: part of the engine name ('3.5', 'EcoBoost', '5.0L V8'), used with a vehicle.
+    'count' is the rows returned; 'total' and 'totals' cover every match, so a capped list is never mistaken for all of it.
+    When a vehicle without an engine matches parts that fit different engines, 'engines' lists them, so the
+    engine can be asked for before parts are offered."""
     warehouse = warehouse_code(warehouse)
     category = _choice(category, categories(), "category")
     stock_filter = _choice(stock_filter, STOCK_FILTERS, "stock filter")
@@ -111,11 +114,12 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
     for w in _words(q):
         where.append("(s.part_number LIKE ? OR s.part_name LIKE ? OR s.brand LIKE ? OR s.fits_summary LIKE ? OR s.category LIKE ?)")
         args += [f"%{w}%"] * 5
+    sub, sargs = [], []
     if year or make or model:
-        sub, sargs = [], []
         if year: sub.append("v.year = ?"); sargs.append(int(year))
         if make: sub.append("v.make = ?"); sargs.append(make)
         if model: sub.append("v.model = ?"); sargs.append(model)
+        if engine and engine.strip(): sub.append("v.engine LIKE ?"); sargs.append(f"%{engine.strip()}%")
         where.append(f"s.part_id IN (SELECT f.part_id FROM part_fitment f JOIN vehicles v USING (vehicle_id) WHERE {' AND '.join(sub)})")
         args += sargs
     if category:
@@ -150,9 +154,23 @@ def search_inventory(emp: Employee, q: str | None = None, year: int | None = Non
                    FROM ({grouped})""", *args)
     out = {"count": len(results), "total": t.pop("parts"), "totals": t, "warehouse": warehouse or "All warehouses",
            "results": results}
+    notes = []
     if out["total"] > len(results):
-        out["note"] = (f"Showing {len(results)} of {out['total']} matching parts; 'totals' covers all of them. Don't add up "
-                       "or extrapolate the rows shown.")
+        notes.append(f"Showing {len(results)} of {out['total']} matching parts; 'totals' covers all of them. Don't add up "
+                     "or extrapolate the rows shown.")
+    if sub and not (engine and engine.strip()):
+        fit = db.rows(f"""SELECT DISTINCT f.part_id, v.engine FROM part_fitment f JOIN vehicles v USING (vehicle_id)
+                          WHERE {' AND '.join(sub)} AND f.part_id IN (SELECT part_id FROM ({grouped}))""", *sargs, *args)
+        engines = sorted({r["engine"] for r in fit})
+        per_part = {}
+        for r in fit:
+            per_part.setdefault(r["part_id"], set()).add(r["engine"])
+        if len(engines) > 1 and any(len(e) < len(engines) for e in per_part.values()):
+            out["engines"] = engines
+            notes.append(f"These parts fit different engines ({', '.join(engines)}). Ask which engine before listing "
+                         "parts, unless the question already says.")
+    if notes:
+        out["note"] = " ".join(notes)
     return out
 
 

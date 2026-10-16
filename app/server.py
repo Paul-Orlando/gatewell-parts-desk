@@ -114,8 +114,9 @@ def vehicles(make: str | None = None, model: str | None = None, emp: Employee = 
 @app.get("/api/inventory")
 def inventory(q: str | None = None, year: int | None = None, make: str | None = None, model: str | None = None,
               category: str | None = None, warehouse: str | None = None, stock_filter: str | None = None,
-              limit: int = 50, emp: Employee = Depends(current_employee)):
-    return redact(services.search_inventory(emp, q, year, make, model, category, warehouse, stock_filter, min(limit, 200)), emp)
+              limit: int = 50, engine: str | None = None, emp: Employee = Depends(current_employee)):
+    return redact(services.search_inventory(emp, q, year, make, model, category, warehouse, stock_filter, min(limit, 200),
+                                            engine), emp)
 
 
 @app.get("/api/parts/{part_number}")

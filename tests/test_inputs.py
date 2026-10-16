@@ -246,3 +246,37 @@ def test_missing_by_warehouse_and_category_answers_in_one_lookup(ids):
     wm = json.loads(assistant.run_tool(load_employee(ids["wh_manager"]), "analytics_summary",
                                                         {"period": "all", "sections": ["missing_by_warehouse_group"]})[0])
     assert {r["warehouse_code"] for r in wm["missing_by_warehouse_group"]} <= {"ATL"}             # scope still applies
+
+
+# --------------------------------------------------------------------------- eval failures 2026-10-14
+def test_parts_that_differ_by_engine_list_the_engines(client, ids):
+    """fit-01: a vehicle without an engine whose matches fit different engines says so, so the engine is asked first."""
+    p = {"q": "spark plugs", "year": 2015, "make": "Ford", "model": "F-150"}
+    r = client.get("/api/inventory", params=p, headers=headers(ids["cs"])).json()
+    assert r["engines"] == ["2.7L V6 EcoBoost", "3.5L V6 EcoBoost", "5.0L V8"] and "Ask which engine" in r["note"]
+    one = client.get("/api/inventory", params={**p, "engine": "3.5"}, headers=headers(ids["cs"])).json()
+    assert "engines" not in one and one["total"] == 2
+    assert all("3.5" in f["engines"] for x in one["results"]
+               for f in client.get(f"/api/parts/{x['part_number']}", headers=headers(ids["cs"])).json()["fits"])
+    same = client.get("/api/inventory", params={"q": "brake pads", "year": 2019, "make": "Honda", "model": "Civic"},
+                      headers=headers(ids["cs"])).json()
+    assert "engines" not in same                                  # parts that fit every engine need no question
+
+
+def test_international_shipping_quotes_say_tax_is_not_included(ids):
+    """tax-02: a shipping quote abroad states the tax that isn't in it, in full_quote's words."""
+    cs = load_employee(ids["cs"])
+    q = json.loads(assistant.run_tool(cs, "quote_shipping", {"items": [{"part_number": "02938-T5C77"}],
+                                                            "customer_id": "R05009"})[0])
+    assert any("exclude import tax: VAT 20% collected at checkout (DDP)" in n for n in q["notes"])
+    us = json.loads(assistant.run_tool(cs, "quote_shipping", {"items": [{"part_number": "02938-T5C77"}],
+                                                             "ship_to_state": "TX"})[0])
+    assert not any("import tax" in n for n in us["notes"])
+
+
+def test_missing_sections_come_with_the_exact_totals(ids):
+    """oth-04: missing-stock sections include the KPIs, so the total isn't added up from rounded rows."""
+    d = json.loads(assistant.run_tool(load_employee(ids["director"]), "analytics_summary",
+                                      {"warehouse": "NWK", "sections": ["missing_by_group"]})[0])
+    assert d["kpis"]["units_missing"] == 140 and d["kpis"]["missing_value_usd"] == 4951
+    assert sum(r["missing_value_usd"] for r in d["missing_by_group"]) != 4951       # why the rows mustn't be added

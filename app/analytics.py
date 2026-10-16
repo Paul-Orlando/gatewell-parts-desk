@@ -23,10 +23,11 @@ SECTIONS = {
     "inventory_by_warehouse": "Per warehouse: units on hand, in transit, missing units and missing value at cost, "
                               "SKUs to reorder, stock value. Use this to compare warehouses",
     "inventory_by_group": "Per category: units on hand, available, stock value",
-    "missing_by_group": "Missing stock per category: units and value at cost",
+    "missing_by_group": "Missing stock per category: units and value at cost. Rows are rounded; for the overall "
+                        "total use units_missing and missing_value_usd in kpis (always included), never the sum of rows",
     "missing_by_warehouse_group": "Missing stock per warehouse and category (units and value at cost), largest first. "
                                   "Use this for questions like 'which warehouse has the most missing stock, and in which "
-                                  "categories'",
+                                  "categories'. For overall totals use kpis (always included)",
     "low_stock": "Top 15 parts at or below reorder point, with days of cover",
     "stock_aging": "Stock by days since last activity (0-30, 31-90, 91-180, 180+)",
     "sales_by_month": "Every month: domestic and international revenue, orders, carrier cost, shipping charged",
