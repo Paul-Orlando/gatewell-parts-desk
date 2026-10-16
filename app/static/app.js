@@ -542,17 +542,24 @@ function renderDemo(d) {
 
 async function viewAssistant() {
   $("#main").innerHTML = intro() + `<p id="demo-note" class="demo-note" hidden></p><div class="chat"><div class="chat-col"><div class="chat-log" id="chat-log" aria-live="polite"></div>
-    <form class="chat-input" id="chat-form"><textarea name="m" rows="2" placeholder="Ask a question, e.g. Do we have rear rotors for a 2020 Tavio in Dallas?" aria-label="Your question"></textarea>
+    <form class="chat-input" id="chat-form"><textarea name="m" rows="2" aria-label="Your question"></textarea>
     <button class="btn" type="submit">Send</button></form></div>
     <div class="chat-side"><h3>Try asking</h3><div id="sugg"></div>
       <button class="btn ghost small" id="chat-clear" type="button">Start a new conversation</button>
       <p class="small muted">Answers are based on company data as of the time shown in the menu. Shipping rates are estimates.</p></div></div>`;
   renderChat();
   const f = $("#chat-form");
+  // Short placeholder on phones (the "Try asking" examples show sample questions); the full example on wider screens.
+  const narrow = window.matchMedia("(max-width: 480px)");
+  const placeholder = () => { if (!f.m.disabled) f.m.placeholder = narrow.matches ? "Ask a question…" : "Ask a question, e.g. Do we have rear rotors for a 2020 Tavio in Dallas?"; };
+  placeholder(); narrow.onchange = placeholder;
+  // Grow with what's typed, up to about 5 lines (the CSS max-height), then scroll.
+  const fit = () => { f.m.style.height = "auto"; f.m.style.height = `${f.m.scrollHeight + 2}px`; };
+  f.m.oninput = fit;
   const send = async (text) => {
     text = text.trim(); if (!text) return;
     S.chat.push({ role: "user", content: text }); renderChat();
-    f.m.value = ""; f.querySelector("button").disabled = true;
+    f.m.value = ""; fit(); f.querySelector("button").disabled = true;
     $("#chat-log").insertAdjacentHTML("beforeend", '<div class="msg bot typing" id="typing">Looking that up…</div>');
     try {
       const r = await api("/api/chat", { method: "POST", body: { messages: S.chat.map(({ role, content }) => ({ role, content })) } });

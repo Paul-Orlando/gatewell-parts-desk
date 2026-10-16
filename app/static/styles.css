@@ -162,7 +162,7 @@ tbody tr.clickable:hover { background: var(--accent-soft); }
 .handoff h4 { margin: 0 0 4px; font-family: var(--cond); font-size: 16px; }
 #sugg h4 { margin: 14px 0 6px; font-family: var(--cond); font-size: 15px; font-weight: 600; }
 .chat-input { border-top: 1px solid var(--rule); padding: 12px; display: flex; gap: 10px; }
-.chat-input textarea { flex: 1; resize: none; min-height: 44px; max-height: 160px; }
+.chat-input textarea { flex: 1; resize: none; min-height: 44px; line-height: 1.45; max-height: calc(5 * 1.45em + 16px); overflow-y: auto; }
 .chat-side { display: flex; flex-direction: column; gap: 10px; overflow: auto; }
 .suggestion { text-align: left; font: 400 14px/1.4 var(--font); background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; padding: 10px 12px; cursor: pointer; color: var(--ink); }
 .suggestion:hover { border-color: var(--accent); }
