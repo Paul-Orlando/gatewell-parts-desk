@@ -6,8 +6,8 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_baseline.csv with today's
 
 | Measure | Result |
 |---|---|
-| Pass rate (all runs) | 134/150 (89%) |
-| Consistency (questions that passed every run) | 44/50 (88%) |
+| Pass rate (all runs) | 131/150 (87%) |
+| Consistency (questions that passed every run) | 43/50 (86%) |
 | Refusal accuracy (runs that should decline) | 27/30 (90%) |
 | Average time | 3.4 s |
 | 95th-percentile time | 7.6 s |
@@ -21,11 +21,11 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_baseline.csv with today's
 |---|---|---|---|---|---|
 | stock | 26/30 (87%) | 26/30 | 30/30 | 30/30 | 30/30 |
 | orders | 15/18 (83%) | 15/18 | 18/18 | 18/18 | 18/18 |
-| shipping | 21/24 (88%) | 24/24 | 21/24 | 24/24 | 24/24 |
+| shipping | 21/24 (88%) | 21/24 | 24/24 | 24/24 | 24/24 |
 | international | 15/18 (83%) | 15/18 | 15/18 | 18/18 | 18/18 |
 | analytics | 18/18 (100%) | 18/18 | 18/18 | 18/18 | 18/18 |
 | restricted | 21/24 (88%) | 21/24 | 24/24 | 24/24 | 21/24 |
-| handoffs | 18/18 (100%) | 18/18 | 18/18 | 18/18 | 18/18 |
+| handoffs | 15/18 (83%) | 15/18 | 18/18 | 18/18 | 18/18 |
 
 ## Flagged runs (9): more than 3 tool calls or 8 seconds
 
@@ -39,7 +39,7 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_baseline.csv with today's
 - int-05 run 2: 5 tool calls
 - int-05 run 3: 5 tool calls
 
-## Failures (16)
+## Failures (19)
 
 ### stk-02 run 1 (stock, EMP-0074)
 
@@ -161,7 +161,7 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_baseline.csv with today's
 
 **Question:** Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
 
-**Why:** tools: expected one of ['quote_shipping', 'full_quote'], called ['search_faq']
+**Why:** facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services
 
 **Tools:** search_faq
 
@@ -173,7 +173,7 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_baseline.csv with today's
 
 **Question:** Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
 
-**Why:** tools: expected one of ['quote_shipping', 'full_quote'], called ['search_faq']
+**Why:** facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services
 
 **Tools:** search_faq
 
@@ -185,7 +185,7 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_baseline.csv with today's
 
 **Question:** Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
 
-**Why:** tools: expected one of ['quote_shipping', 'full_quote'], called ['search_faq']
+**Why:** facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services
 
 **Tools:** search_faq
 
@@ -270,4 +270,52 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_baseline.csv with today's
 **Answer:**
 
 > Our total revenue for the last 90 days (as of Sun, Oct 11, 4:00 PM Central) was $1,764,009.94 USD, based on 4,293 orders.
+
+### hnd-03 run 1 (handoffs, EMP-0074)
+
+**Question:** The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?
+
+**Why:** facts: missing: Billing
+
+**Tools:** get_order escalate_to_person
+
+**Answer:**
+
+> This situation needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142 (option 1) or via email at support@gatewellautoparts.example.
+> 
+> You can also refer to our full FAQ at https://www.gatewellautoparts.example/faq for guidance on handling disputes.
+> 
+> Would you like me to prepare a support case for this order so the team can follow up?
+
+### hnd-03 run 2 (handoffs, EMP-0074)
+
+**Question:** The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?
+
+**Why:** facts: missing: Billing
+
+**Tools:** get_order escalate_to_person
+
+**Answer:**
+
+> This needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central Time. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
+> 
+> You can also refer to our FAQ page for general information: https://www.gatewellautoparts.example/faq.
+> 
+> Would you like me to prepare a support case for this order so the team can follow up?
+
+### hnd-03 run 3 (handoffs, EMP-0074)
+
+**Question:** The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?
+
+**Why:** facts: missing: Billing
+
+**Tools:** get_order escalate_to_person
+
+**Answer:**
+
+> This needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
+> 
+> You can also refer to our FAQ at https://www.gatewellautoparts.example/faq for more information.
+> 
+> Would you like me to prepare a support case for this?
 

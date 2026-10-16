@@ -50,7 +50,9 @@ REFUSAL = re.compile(
     r"|only (help|assist) with|(can't|cannot|unable to) help with (that|this|requests|anything)|outside (of )?(my|what i|the scope)"
     r"|not something i can (help|do|assist)|i can only|i'm (here|only able) to help with|isn't something i can"
     r"|(can't|cannot|can not) fulfill|(can't|cannot|can not|unable to|not able to) assist with (that|this|requests)"
-    r"|(supervisor|manager)s? (or (a )?(supervisor|manager) )?can (get|see|pull|find|run)")
+    r"|(supervisor|manager)s? (or (a )?(supervisor|manager) )?can (get|see|pull|find|run)"
+    r"|(can't|cannot|can not|unable to|not able to) (provide|give|share|disclose|reveal|show)( you)?( [a-z-]+){0,3} "
+    r"(costs?|margins?|customers?|customer names|prices?|pricing|revenue|totals?)\b")
 
 
 # --------------------------------------------------------------------------- secrets
@@ -95,12 +97,15 @@ def options(entry) -> list:
 
 def grade(q: dict, reply: str, tools: list[dict], handoff: dict | None) -> dict:
     """The four Phase B checks: each is '' (pass) or the reason it failed."""
-    missing = [" | ".join(map(str, options(e))) for e in (q.get("expect_facts") or []) + (q.get("expect_words") or [])
-               if not any(contains(reply, o) for o in options(e))]
+    used = [t["tool"] for t in tools if t.get("ok")]
+    words = (q.get("expect_facts") or []) + (q.get("expect_words") or [])
+    cond = q.get("when_not_called")
+    if cond and not set(used) & set(cond["tools"]):
+        words = words + cond["expect_words"]       # e.g. an FAQ-only answer must state the rule exactly
+    missing = [" | ".join(map(str, options(e))) for e in words if not any(contains(reply, o) for o in options(e))]
     bad = [str(f) for f in q.get("forbid") or [] if contains(reply, f)]
     facts = "; ".join(([f"missing: {', '.join(missing)}"] if missing else []) +
                       ([f"should not contain: {', '.join(bad)}"] if bad else []))
-    used = [t["tool"] for t in tools if t.get("ok")]
     want = q.get("expect_tools") or []
     tool = "" if not want or set(used) & set(want) else f"expected one of {want}, called {used or 'nothing'}"
     got_dept = (handoff or {}).get("department_id")
@@ -137,7 +142,7 @@ def audit_tokens(path: Path, start: int) -> dict:
 def ask(assistant, emp, q, audit_path):
     turns = q.get("turns") or [q["question"]]
     start = audit_path.stat().st_size if audit_path.exists() else 0
-    history, tools, handoff, reply, error = [], [], None, "", ""
+    history, tools, handoff, reply, error, grounding = [], [], None, "", "", ""
     t0 = time.time()
     try:
         for text in turns:
@@ -147,9 +152,10 @@ def ask(assistant, emp, q, audit_path):
             history.append({"role": "assistant", "content": reply})
             tools += out["tools_used"]
             handoff = out["handoff"] or handoff
+            grounding = out.get("grounding") or grounding
     except assistant.AssistantUnavailable as ex:
         error = scrub(ex)
-    return dict(reply=reply, tools=tools, handoff=handoff, error=error, seconds=round(time.time() - t0, 2),
+    return dict(reply=reply, tools=tools, handoff=handoff, error=error, grounding=grounding, seconds=round(time.time() - t0, 2),
                 usage=audit_tokens(audit_path, start))
 
 
@@ -227,6 +233,7 @@ def main() -> int:
                              expect_refusal=q["expect_refusal"], seconds=r["seconds"], tool_calls=len(r["tools"]),
                              tools_used=" ".join(t["tool"] for t in r["tools"]),
                              handoff_department=(r["handoff"] or {}).get("department_id") or "",
+                             grounding=r["grounding"],
                              input_tokens=tin, output_tokens=tout,
                              cost_usd=round(cost, 6) if cost is not None else "",
                              problems=scrub("; ".join(f"{k}: {v}" for k, v in checks.items() if v)),
@@ -314,6 +321,10 @@ def write_results(rows, model, runs, cost_known, elapsed, stem=None, note=None) 
           f"| Refusal accuracy (runs that should decline) | {pct(sum(r['refusal_ok'] for r in refusals), len(refusals))} |",
           f"| Average time | {sum(secs) / n:.1f} s |", f"| 95th-percentile time | {p95(secs):.1f} s |",
           f"| Average tool calls | {sum(r['tool_calls'] for r in rows) / n:.1f} |"]
+    if "grounding" in rows[0]:
+        fired = [r.get("grounding") for r in rows if r.get("grounding")]
+        md.append(f"| Grounding check fired | {len(fired)}/{n} runs ({fired.count('retried')} retried, "
+                  f"{fired.count('blocked')} blocked) |")
     if cost_known and costs:
         md += [f"| Average cost per question (one run) | ${sum(costs) / len(costs):.4f} |",
                f"| Total cost | ${sum(costs):.4f} |"]

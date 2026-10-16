@@ -558,8 +558,7 @@ FIGURE_RE = re.compile(
     rf"|\b(?:{_MONTHS})[a-z]*\.?\s+\d{{1,2}}\b|\b\d{{4}}-\d{{2}}-\d{{2}}\b"
     r"|(?:C\$|US\$|\$|£|€)\s?\d|\b(?:USD|CAD|GBP|EUR|MXN)\s?\d", re.I)
 NON_DATA_TOOLS = {"search_faq", "contact_team", "escalate_to_person", "propose_support_case"}
-GROUNDING_NUDGE = ("You stated figures for {parts} without looking them up. Call the right tool first (for example "
-                   "get_part_details or search_inventory), then answer only from its results.")
+GROUNDING_NOTE = "Note for this answer: look up the figures for {parts} with a tool before answering."
 GROUNDING_SAFE_REPLY = ("Let me look that up before giving you any figures for {part}. Want me to check its stock, bins "
                         "and inbound shipments?")
 
@@ -585,6 +584,7 @@ def chat(emp: Employee, history: list[dict], client=None) -> dict:
              for t in tools_for(emp)]
     trace, handoff, pending, started, reply, usage = [], None, None, time.time(), None, {}
     grounding = None                        # "retried" or "blocked" when the reply gave figures without a lookup
+    original, retry_started = [dict(m) for m in messages], None
     for _ in range(MAX_TOOL_ROUNDS):
         data = client.complete({"model": MODEL, "messages": messages, "tools": tools, "tool_choice": "auto",
                                 "temperature": TEMPERATURE, "max_tokens": 1600,
@@ -596,10 +596,12 @@ def chat(emp: Employee, history: list[dict], client=None) -> dict:
         if not calls:
             reply = _text(msg.get("content")).strip()
             missing = _ungrounded_parts(reply, history, trace)
-            if missing and grounding is None:           # once: ask the model to look it up instead
-                grounding = "retried"
-                messages.append({"role": "assistant", "content": reply})
-                messages.append({"role": "user", "content": GROUNDING_NUDGE.format(parts=", ".join(missing))})
+            if missing and grounding is None:           # once: discard the draft and ask again with a lookup note
+                grounding, retry_started = "retried", time.time()
+                # The model never sees its rejected draft (so the reply can't mention or apologize for it): the
+                # original conversation is sent again, with a short note added to the system prompt.
+                messages = [dict(m) for m in original]
+                messages[0]["content"] += "\n\n" + GROUNDING_NOTE.format(parts=", ".join(missing))
                 reply = None
                 continue
             if missing:                                 # still no lookup: never pass invented figures on
@@ -623,9 +625,11 @@ def chat(emp: Employee, history: list[dict], client=None) -> dict:
     finished = reply is not None
     if not finished:
         reply = "I couldn't finish looking that up. Try a narrower question, or contact Customer Service at (800) 555-0142."
+    # how often the grounding check fired, and the latency its retry added
+    grounding_info = {"grounding": grounding, "grounding_extra_seconds": round(time.time() - retry_started, 2)} if grounding else {}
     _audit(dict(at=datetime.now(timezone.utc).isoformat(), employee=emp.employee_id, role=emp.role, model=MODEL,
                 question=history[-1]["content"] if history else "", tools=trace, handoff=bool(handoff),
-                case_proposed=bool(pending), **({"grounding": grounding} if grounding else {}),
+                case_proposed=bool(pending), **grounding_info,
                 tokens=usage or None, seconds=round(time.time() - started, 2)))
     return {"reply": reply or "I couldn't find an answer.", "tools_used": trace, "handoff": handoff, "pending_case": pending,
-            "finished": finished, **({"grounding": grounding} if grounding else {})}
+            "finished": finished, **grounding_info}

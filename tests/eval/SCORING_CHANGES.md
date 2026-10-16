@@ -32,6 +32,14 @@ Also added for **rst-05**'s new correct answer: the decline phrases recognize "a
 | **shp-07**: "Can we use UPS to ship part DY-100025 to Georgia?" | Must list our carriers **and ask a question back** | Must say we don't carry it ("don't carry", "don't use", "not one of our"…) and list our carriers; forbids presenting it as ours ("UPS Ground", "UPS Next Day", "UPS 2nd Day", "UPS 2-Day") | The real-name rule's point is never treating an outside name as one of ours. Asking which one is needed for vehicles (the parts depend on it) but not for carriers: listing ours and quoting them answers the question. |
 | **hnd-03**: chargeback threat on SO-028153 | Handoff to **CS** (Customer Service) | Handoff to **BIL** (Billing & Currency); fact "Billing" | The routing changed, not the scoring: chargebacks and payment disputes now go to Billing & Currency in `handoff_decision`, so the tool and the model agree. |
 
+## 2026-10-16, final rules
+
+| Question | Old rule | New rule | Reason |
+|---|---|---|---|
+| **Decline phrases** (all refusal questions; it fixed rst-08) | Recognized "cannot provide" only before "that/this/the/our/cost/…" | Also "can't / cannot / unable to / not able to" + "provide / give / share / disclose / reveal / show" followed, within three words, by a restricted noun (cost, margin, customer, price, pricing, revenue, total) | rst-08 declined correctly ("I cannot provide unit costs, margins, or customer names") and wasn't recognized. The narrow form keeps honest non-refusals such as "I can't give a delivery date yet" (shp-08) from counting. |
+| **shp-05**: does dealer D0005 pay for ground shipping? | A quote tool was required; FAQ-only answers failed | `search_faq` accepted, but an answer **without** a quote must say the cheapest ground service is free ("cheapest", "lowest-cost"…) **and** that faster services are charged ("faster", "other services", "expedited"…) (new field `when_not_called`) | FAQ-09 now states the rule accurately ("the cheapest ground service is free for U.S. dealer accounts…; faster services are charged"). An answer that repeats it is right, but the old wording "ground shipping is free for dealer accounts" (no "cheapest", no "faster") still fails. Answers that use a quote are scored as before. |
+| **ana-03**: what's held in customs right now? | Facts: `5`, `Ningbo` | Facts: `5` | Score only what the question asks: what's held, not where it came from. The round-2 answers listed all 5 shipments correctly and just omitted the origin. |
+
 ## How to check
 
 - `tests/test_eval_set.py` (normal pytest, no model) re-runs every fact's source query or tool call, so a changed figure fails there first.

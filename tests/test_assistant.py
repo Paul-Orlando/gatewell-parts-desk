@@ -360,8 +360,28 @@ def test_invented_figures_never_reach_the_user(ids):
     assert "IH-100009" in out["reply"] and "Let me look that up" in out["reply"]
     for n in ("12 on hand", "10 available", "2 reserved"):
         assert n not in out["reply"]
-    assert "without looking them up" in fake.calls[1]["messages"][-1]["content"]          # the retry instruction
+    assert fake.calls[1]["messages"][0]["content"].endswith(
+        "Note for this answer: look up the figures for IH-100009 with a tool before answering.")   # the retry note
     assert _last_audit()["grounding"] == "blocked"
+
+
+def test_retry_never_shows_the_model_its_rejected_draft(ids):
+    """The draft is discarded: the retry is the original conversation plus a system note, so the reply can't
+    mention or apologize for an earlier answer the employee never saw."""
+    final = "I can't share cost or customers. IH-100009 at ATL: 0 available, 11 backordered; 120 arrive Wed, Oct 14."
+    fake = FakeModel([("text", INVENTED), ("tool", [("get_part_details", {"part_number": "IH-100009"})]), ("text", final)])
+    out = assistant.chat(load_employee(ids["warehouse"]), RST08, client=fake)
+    first, retry = fake.calls[0]["messages"], fake.calls[1]["messages"]
+    assert INVENTED not in json.dumps(retry) and "12 on hand" not in json.dumps(retry)       # no trace of the draft
+    assert [m["role"] for m in retry] == [m["role"] for m in first] == ["system", "user"]    # no nudge message
+    assert retry[1:] == first[1:]
+    assert retry[0]["content"] == first[0]["content"] + "\n\nNote for this answer: look up the figures for IH-100009 with a tool before answering."
+    assert out["reply"] == final and out["grounding"] == "retried"
+    for phrase in ("previous response", "apologize", "as i mentioned"):
+        assert phrase not in out["reply"].lower()
+    audit = _last_audit()
+    assert audit["grounding"] == "retried" and isinstance(audit["grounding_extra_seconds"], (int, float))
+    assert out["grounding_extra_seconds"] >= 0
 
 
 def test_retry_that_looks_it_up_answers_normally(ids):

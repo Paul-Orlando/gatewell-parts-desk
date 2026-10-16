@@ -297,7 +297,7 @@ Please note that these are estimated rates for prototyping; final carrier charge
 shp-04,shipping,EMP-0074,3,True,True,True,True,True,False,3.23,1,quote_shipping,9588,109,0.00256,,,"What's the cheapest way to ship one set of DY-100025 to a home in Georgia, and when would it arrive?","The cheapest shipping option for one set of DY-100025 to a home in Georgia is Postara Ground Saver at $4.80. It is estimated to arrive by Tue, Oct 13.
 
 Please note that these are estimated rates for prototyping; final carrier charges may differ.",
-shp-05,shipping,EMP-0074,1,False,True,False,True,True,False,3.89,2,get_part_price search_faq,13044,70,0.003366,"tools: expected one of ['quote_shipping', 'full_quote'], called ['get_part_price', 'search_faq']",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,Ground shipping is free for dealer accounts.,
+shp-05,shipping,EMP-0074,1,False,False,True,True,True,False,3.89,2,get_part_price search_faq,13044,70,0.003366,"facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,Ground shipping is free for dealer accounts.,
 shp-05,shipping,EMP-0074,2,True,True,True,True,True,False,4.45,2,get_part_price quote_shipping,9944,207,0.002796,,,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,"Dealer D0005 does not pay for ground shipping if they choose Postara Ground Saver, as it is free for this order.
 
 Other ground shipping options are available but carry a cost:
@@ -352,7 +352,7 @@ Here are the shipping estimates for the **Premium** bumper cover (Part #KT-05409
 *   **OEM:** Part #KZ-100619 ($314.80) - 1 in stock.
 
 Would you like me to prepare a full quote for either of these parts, or do you need more information?",
-shp-07,shipping,EMP-0074,1,False,False,True,True,True,False,4.11,1,quote_shipping,9560,329,0.002884,facts: missing: ?,,Can we use UPS to ship part DY-100025 to Georgia?,"We do not carry UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
+shp-07,shipping,EMP-0074,1,True,True,True,True,True,False,4.11,1,quote_shipping,9560,329,0.002884,,,Can we use UPS to ship part DY-100025 to Georgia?,"We do not carry UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
 
 For shipping part DY-100025 to Georgia, here are the available options:
 
@@ -369,7 +369,7 @@ For shipping part DY-100025 to Georgia, here are the available options:
 | Parcelora | Next Day | Tue, Oct 13 | $35.96 |
 
 *Note: These are estimated rates for prototyping; final carrier charges may differ.*",
-shp-07,shipping,EMP-0074,2,False,False,True,True,True,False,3.69,1,quote_shipping,9560,329,0.002884,facts: missing: ?,,Can we use UPS to ship part DY-100025 to Georgia?,"We do not use UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
+shp-07,shipping,EMP-0074,2,True,True,True,True,True,False,3.69,1,quote_shipping,9560,329,0.002884,,,Can we use UPS to ship part DY-100025 to Georgia?,"We do not use UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
 
 For shipping part DY-100025 to Georgia, here are the available options:
 
@@ -386,7 +386,7 @@ For shipping part DY-100025 to Georgia, here are the available options:
 | Parcelora | Next Day | Tue, Oct 13 | $35.96 |
 
 *Note: These are estimated shipping rates for prototyping; final carrier charges may differ.*",
-shp-07,shipping,EMP-0074,3,False,False,True,True,True,False,4.48,1,quote_shipping,9560,329,0.002884,facts: missing: ?,,Can we use UPS to ship part DY-100025 to Georgia?,"We do not use UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
+shp-07,shipping,EMP-0074,3,True,True,True,True,True,False,4.48,1,quote_shipping,9560,329,0.002884,,,Can we use UPS to ship part DY-100025 to Georgia?,"We do not use UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
 
 For shipping part DY-100025 to Georgia, here are the available options:
 
@@ -572,9 +572,9 @@ int-03,international,EMP-0074,3,True,True,True,True,True,False,3.69,1,full_quote
 *   **Estimated Delivery:** Mon, Oct 26
 *   **Tax Note:** IVA 16% collected at checkout (DDP).
 *   **Disclaimer:** These are estimated rates for prototyping; final carrier charges may differ.",
-int-04,international,EMP-0074,1,False,False,True,True,True,False,2.75,1,search_faq,8225,81,0.002178,facts: missing: no | doesn't | does not | don't,,Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?,"Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information in our FAQ at https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.",
-int-04,international,EMP-0074,2,False,False,True,True,True,False,3.0,1,search_faq,8225,86,0.002185,facts: missing: no | doesn't | does not | don't,,Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?,"Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information on our international shipping policies in our FAQ: https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.",
-int-04,international,EMP-0074,3,False,False,True,True,True,False,3.08,1,search_faq,8225,86,0.002185,facts: missing: no | doesn't | does not | don't,,Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?,"Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information on our international shipping policies in our FAQ: https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.",
+int-04,international,EMP-0074,1,True,True,True,True,True,False,2.75,1,search_faq,8225,81,0.002178,,,Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?,"Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information in our FAQ at https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.",
+int-04,international,EMP-0074,2,True,True,True,True,True,False,3.0,1,search_faq,8225,86,0.002185,,,Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?,"Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information on our international shipping policies in our FAQ: https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.",
+int-04,international,EMP-0074,3,True,True,True,True,True,False,3.08,1,search_faq,8225,86,0.002185,,,Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?,"Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information on our international shipping policies in our FAQ: https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.",
 int-05,international,EMP-0074,1,True,True,True,True,True,False,6.92,3,search_inventory full_quote full_quote,19186,440,0.005457,,,A customer in Toronto wants 2 front struts for a 2018 Torvik. What's the total in CAD with shipping?,"For a 2018 Halvard Torvik, we have two front strut options available. Both are in stock at our Newark Distribution Center.
 
 Here are the total estimates in CAD (including parts, shipping, and 5% GST collected at checkout; provincial tax extra).
@@ -1020,23 +1020,23 @@ This needs the Returns & Cores team. They are currently closed and will open on 
 For reference, our return policy states that new, uninstalled parts in original packaging can be returned within 30 days of delivery for a full refund. You can find more information in our FAQ: https://www.gatewellautoparts.example/faq.
 
 Would you like me to prepare a support case for this request?",RET
-hnd-03,handoffs,EMP-0074,1,True,True,True,True,True,False,5.74,2,get_order escalate_to_person,14142,222,0.003868,,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This situation requires the Customer Service team. They are currently closed and will reopen on Mon, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
+hnd-03,handoffs,EMP-0074,1,False,False,True,True,True,False,5.74,2,get_order escalate_to_person,14142,222,0.003868,facts: missing: Billing,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This situation requires the Customer Service team. They are currently closed and will reopen on Mon, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
 
 For more information, you can also check our FAQ page: https://www.gatewellautoparts.example/faq.
 
-Would you like me to prepare a support case for this order so the team can follow up?",CS
-hnd-03,handoffs,EMP-0074,2,False,False,True,True,True,False,5.97,3,get_order escalate_to_person contact_team,19649,234,0.005263,facts: missing: Customer Service,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This needs the Billing & Currency team, as they handle payment and refund disputes.
+Would you like me to prepare a support case for this order so the team can follow up?",BIL
+hnd-03,handoffs,EMP-0074,2,True,True,True,True,True,False,5.97,3,get_order escalate_to_person contact_team,19649,234,0.005263,,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This needs the Billing & Currency team, as they handle payment and refund disputes.
 
 They are currently closed and will reopen on **Mon, Oct 12, 8:00 AM Central**. You can reach them at **(800) 555-0146** or **billing@gatewellautoparts.example**.
 
 For general policy information, you can also check the [FAQ page](https://www.gatewellautoparts.example/faq).
 
-Would you like me to prepare a support case for this order so the team can follow up?",CS
-hnd-03,handoffs,EMP-0074,3,True,True,True,True,True,False,5.26,2,get_order escalate_to_person,14142,222,0.003868,,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This situation needs the Customer Service team. They are currently closed and will reopen on Mon, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
+Would you like me to prepare a support case for this order so the team can follow up?",BIL
+hnd-03,handoffs,EMP-0074,3,False,False,True,True,True,False,5.26,2,get_order escalate_to_person,14142,222,0.003868,facts: missing: Billing,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This situation needs the Customer Service team. They are currently closed and will reopen on Mon, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
 
 For more information, you can also check our FAQ page: https://www.gatewellautoparts.example/faq.
 
-Would you like me to prepare a support case for this order so the team can follow up?",CS
+Would you like me to prepare a support case for this order so the team can follow up?",BIL
 hnd-04,handoffs,EMP-0074,1,True,True,True,True,True,False,2.74,1,contact_team,8072,120,0.002198,,,I need to talk to someone in billing about a customer's invoice.,"You can reach the Billing & Currency team at (800) 555-0146 or billing@gatewellautoparts.example. They are currently closed and will reopen on Mon, Oct 12, at 8:00 AM Central.
 
 You can also find information on invoices and payments in our FAQ at https://www.gatewellautoparts.example/faq.

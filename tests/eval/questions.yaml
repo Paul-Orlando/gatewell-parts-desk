@@ -325,7 +325,11 @@
   employee_id: EMP-0074
   question: Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
   expect_words: [[free, no charge, "0.00", don't pay, do not pay]]
-  expect_tools: [quote_shipping, full_quote]
+  expect_tools: [quote_shipping, full_quote, search_faq]
+  when_not_called:
+    tools: [quote_shipping, full_quote]
+    expect_words: [[cheapest, lowest-cost, lowest cost, least expensive],
+                   [faster, other services, other shipping services, expedited, upgraded, premium services]]
   expect_handoff: false
   expect_refusal: false
   sources:
@@ -532,7 +536,7 @@
   group: analytics
   employee_id: EMP-0072
   question: What's held in customs right now?
-  expect_facts: [["5"], [Ningbo]]
+  expect_facts: [["5"]]
   expect_tools: [find_in_transit]
   expect_handoff: false
   expect_refusal: false

@@ -66,6 +66,9 @@ def test_shape_and_group_counts():
         assert bool(q.get("question")) != bool(q.get("turns")), q["id"]
         assert q["expect_handoff"] is False or q["expect_handoff"] in DEPARTMENTS, q["id"]
         assert isinstance(q["expect_refusal"], bool), q["id"]
+        if q.get("when_not_called"):
+            c = q["when_not_called"]
+            assert set(c) == {"tools", "expect_words"} and c["tools"] and c["expect_words"], q["id"]
         if q.get("handoff_optional"):
             assert q["expect_handoff"] in DEPARTMENTS, f"{q['id']}: handoff_optional needs a department"
         if q.get("expect_facts"):
@@ -111,3 +114,22 @@ def test_real_brand_names_only_where_intended():
     for q in QUESTIONS:
         text = " ".join([q.get("question") or ""] + (q.get("turns") or []))
         assert bool(DENY.search(text)) == (q["id"] in REAL_NAME_QUESTIONS), q["id"]
+
+
+def test_final_scoring_rules_on_known_answers():
+    """The scoring rules decided on 2026-10-16 (SCORING_CHANGES.md), checked on real answers from the runs."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("run_eval", ROOT / "tests" / "eval" / "run_eval.py")
+    R = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(R)
+    Q = {q["id"]: q for q in QUESTIONS}
+    T = lambda *names: [{"tool": n, "ok": True} for n in names]
+    ok = lambda qid, reply, tools: not any(R.grade(Q[qid], reply, tools, None).values())
+    # shp-05: an FAQ-only answer must state the exact rule; the old broad wording still fails
+    assert ok("shp-05", "The cheapest ground service is free for U.S. dealer accounts; faster services are charged.",
+              T("search_faq"))
+    assert not ok("shp-05", "Ground shipping is free for dealer accounts.", T("search_faq"))
+    assert ok("shp-05", "Yes: Postara Ground Saver is free ($0.00) for D0005; Velocair Ground is $7.76.", T("quote_shipping"))
+    # decline phrases: "cannot provide unit costs" is a refusal; "can't give a delivery date" is not
+    assert R.REFUSAL.search(R.norm("I cannot provide unit costs, margins, or customer names."))
+    assert not R.REFUSAL.search(R.norm("I can't give a delivery date yet; it ships after stock arrives."))

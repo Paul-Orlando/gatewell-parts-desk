@@ -337,9 +337,9 @@ Please note that these are estimated rates for prototyping; final carrier charge
 shp-04,shipping,EMP-0074,3,True,True,True,True,True,False,2.56,1,quote_shipping,9348,135,0.00254,,,"What's the cheapest way to ship one set of DY-100025 to a home in Georgia, and when would it arrive?","The cheapest shipping option for one set of DY-100025 to a residential address in Georgia is **Postara Ground Saver** at **$4.80**. It is estimated to arrive by **Tue, Oct 13**.
 
 *Note: These are estimated rates for prototyping; final carrier charges may differ. These shipping charges are for the shipment only; a customer's total would come from a full quote.*",
-shp-05,shipping,EMP-0074,1,False,True,False,True,True,False,2.33,1,search_faq,8011,50,0.002078,"tools: expected one of ['quote_shipping', 'full_quote'], called ['search_faq']",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,"Yes, ground shipping is free for dealer accounts. You can tell the customer that they will not be charged for ground shipping on their order.",
-shp-05,shipping,EMP-0074,2,False,True,False,True,True,False,2.57,1,search_faq,8011,50,0.002078,"tools: expected one of ['quote_shipping', 'full_quote'], called ['search_faq']",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,"Yes, ground shipping is free for dealer accounts. You can tell the customer that they will not be charged for ground shipping on their order.",
-shp-05,shipping,EMP-0074,3,False,True,False,True,True,False,2.38,1,search_faq,8011,50,0.002078,"tools: expected one of ['quote_shipping', 'full_quote'], called ['search_faq']",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,"Yes, ground shipping is free for dealer accounts. You can tell the customer that they will not be charged for ground shipping on their order.",
+shp-05,shipping,EMP-0074,1,False,False,True,True,True,False,2.33,1,search_faq,8011,50,0.002078,"facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,"Yes, ground shipping is free for dealer accounts. You can tell the customer that they will not be charged for ground shipping on their order.",
+shp-05,shipping,EMP-0074,2,False,False,True,True,True,False,2.57,1,search_faq,8011,50,0.002078,"facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,"Yes, ground shipping is free for dealer accounts. You can tell the customer that they will not be charged for ground shipping on their order.",
+shp-05,shipping,EMP-0074,3,False,False,True,True,True,False,2.38,1,search_faq,8011,50,0.002078,"facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services",,Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?,"Yes, ground shipping is free for dealer accounts. You can tell the customer that they will not be charged for ground shipping on their order.",
 shp-06,shipping,EMP-0074,1,True,True,True,True,True,False,4.61,2,search_inventory quote_shipping,13674,419,0.004047,,,"Compare Parcelora, Velocair and Postara to ship a front bumper cover for a 2020 Kenzai Aravel to Dallas, Texas, home address.","For a 2020 Kenzai Aravel front bumper cover, we have two options available: a Premium aftermarket part (KT-05409) and an OEM part (KZ-100619).
 
 Please note that Postara cannot ship this item because the package dimensions exceed their size limits. Here is the comparison for shipping the Premium bumper cover (KT-05409) from our Atlanta warehouse to a residential address in Dallas, Texas:
@@ -966,21 +966,21 @@ This needs the Returns & Cores team. They are currently closed and will reopen o
 For reference, our return policy states that new, uninstalled parts in original packaging can be returned within 30 days of delivery for a full refund. You can find more details in our [FAQ](https://www.gatewellautoparts.example/faq).
 
 Would you like me to prepare a support case for this request?",RET
-hnd-03,handoffs,EMP-0074,1,True,True,True,True,True,False,4.76,2,get_order escalate_to_person,13787,224,0.003783,,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This situation needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142 (option 1) or via email at support@gatewellautoparts.example.
+hnd-03,handoffs,EMP-0074,1,False,False,True,True,True,False,4.76,2,get_order escalate_to_person,13787,224,0.003783,facts: missing: Billing,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This situation needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142 (option 1) or via email at support@gatewellautoparts.example.
 
 You can also refer to our full FAQ at https://www.gatewellautoparts.example/faq for guidance on handling disputes.
 
-Would you like me to prepare a support case for this order so the team can follow up?",CS
-hnd-03,handoffs,EMP-0074,2,True,True,True,True,True,False,3.76,2,get_order escalate_to_person,13762,205,0.003748,,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central Time. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
+Would you like me to prepare a support case for this order so the team can follow up?",BIL
+hnd-03,handoffs,EMP-0074,2,False,False,True,True,True,False,3.76,2,get_order escalate_to_person,13762,205,0.003748,facts: missing: Billing,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central Time. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
 
 You can also refer to our FAQ page for general information: https://www.gatewellautoparts.example/faq.
 
-Would you like me to prepare a support case for this order so the team can follow up?",CS
-hnd-03,handoffs,EMP-0074,3,True,True,True,True,True,False,3.66,2,get_order escalate_to_person,13762,196,0.003734,,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
+Would you like me to prepare a support case for this order so the team can follow up?",BIL
+hnd-03,handoffs,EMP-0074,3,False,False,True,True,True,False,3.66,2,get_order escalate_to_person,13762,196,0.003734,facts: missing: Billing,,The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?,"This needs the Customer Service team. They are currently closed and will reopen on Monday, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
 
 You can also refer to our FAQ at https://www.gatewellautoparts.example/faq for more information.
 
-Would you like me to prepare a support case for this?",CS
+Would you like me to prepare a support case for this?",BIL
 hnd-04,handoffs,EMP-0074,1,True,True,True,True,True,False,2.65,1,contact_team,7837,155,0.002192,,,I need to talk to someone in billing about a customer's invoice.,"The Billing & Currency team handles invoice questions. They are currently closed and will next be open on Monday, Oct 12, at 9:00 AM (Eastern Time).
 
 You can reach them at:

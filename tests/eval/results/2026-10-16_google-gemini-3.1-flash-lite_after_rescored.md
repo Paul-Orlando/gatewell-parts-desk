@@ -6,8 +6,8 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_after.csv with today's qu
 
 | Measure | Result |
 |---|---|
-| Pass rate (all runs) | 139/150 (93%) |
-| Consistency (questions that passed every run) | 45/50 (90%) |
+| Pass rate (all runs) | 144/150 (96%) |
+| Consistency (questions that passed every run) | 47/50 (94%) |
 | Refusal accuracy (runs that should decline) | 30/30 (100%) |
 | Average time | 3.6 s |
 | 95th-percentile time | 6.9 s |
@@ -21,11 +21,11 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_after.csv with today's qu
 |---|---|---|---|---|---|
 | stock | 30/30 (100%) | 30/30 | 30/30 | 30/30 | 30/30 |
 | orders | 18/18 (100%) | 18/18 | 18/18 | 18/18 | 18/18 |
-| shipping | 20/24 (83%) | 21/24 | 23/24 | 24/24 | 24/24 |
-| international | 15/18 (83%) | 15/18 | 18/18 | 18/18 | 18/18 |
+| shipping | 23/24 (96%) | 23/24 | 24/24 | 24/24 | 24/24 |
+| international | 18/18 (100%) | 18/18 | 18/18 | 18/18 | 18/18 |
 | analytics | 18/18 (100%) | 18/18 | 18/18 | 18/18 | 18/18 |
 | restricted | 21/24 (88%) | 21/24 | 21/24 | 24/24 | 24/24 |
-| handoffs | 17/18 (94%) | 17/18 | 18/18 | 18/18 | 18/18 |
+| handoffs | 16/18 (89%) | 16/18 | 18/18 | 18/18 | 18/18 |
 
 ## Flagged runs (5): more than 3 tool calls or 8 seconds
 
@@ -35,139 +35,19 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_after.csv with today's qu
 - int-05 run 2: 8.1 s
 - int-05 run 3: 13.3 s
 
-## Failures (11)
+## Failures (6)
 
 ### shp-05 run 1 (shipping, EMP-0074)
 
 **Question:** Dealer D0005 wants two sets of DY-100025. Do they pay for ground shipping?
 
-**Why:** tools: expected one of ['quote_shipping', 'full_quote'], called ['get_part_price', 'search_faq']
+**Why:** facts: missing: cheapest | lowest-cost | lowest cost | least expensive, faster | other services | other shipping services | expedited | upgraded | premium services
 
 **Tools:** get_part_price search_faq
 
 **Answer:**
 
 > Ground shipping is free for dealer accounts.
-
-### shp-07 run 1 (shipping, EMP-0074)
-
-**Question:** Can we use UPS to ship part DY-100025 to Georgia?
-
-**Why:** facts: missing: ?
-
-**Tools:** quote_shipping
-
-**Answer:**
-
-> We do not carry UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
-> 
-> For shipping part DY-100025 to Georgia, here are the available options:
-> 
-> | Carrier | Service | Est. Delivery | Cost (USD) |
-> | :--- | :--- | :--- | :--- |
-> | Postara | Ground Saver | Tue, Oct 13 | $4.80 |
-> | Postara | Priority | Wed, Oct 14 | $7.87 |
-> | Velocair | Ground | Tue, Oct 13 | $13.81 |
-> | Parcelora | Ground | Tue, Oct 13 | $14.10 |
-> | Postara | Priority Overnight | Tue, Oct 13 | $18.08 |
-> | Velocair | 2-Day | Wed, Oct 14 | $25.36 |
-> | Parcelora | 2-Day | Wed, Oct 14 | $25.62 |
-> | Velocair | Overnight | Tue, Oct 13 | $35.43 |
-> | Parcelora | Next Day | Tue, Oct 13 | $35.96 |
-> 
-> *Note: These are estimated rates for prototyping; final carrier charges may differ.*
-
-### shp-07 run 2 (shipping, EMP-0074)
-
-**Question:** Can we use UPS to ship part DY-100025 to Georgia?
-
-**Why:** facts: missing: ?
-
-**Tools:** quote_shipping
-
-**Answer:**
-
-> We do not use UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
-> 
-> For shipping part DY-100025 to Georgia, here are the available options:
-> 
-> | Carrier | Service | Estimated Delivery | Cost (USD) |
-> | :--- | :--- | :--- | :--- |
-> | Postara | Ground Saver | Tue, Oct 13 | $4.80 |
-> | Postara | Priority | Wed, Oct 14 | $7.87 |
-> | Velocair | Ground | Tue, Oct 13 | $13.81 |
-> | Parcelora | Ground | Tue, Oct 13 | $14.10 |
-> | Postara | Priority Overnight | Tue, Oct 13 | $18.08 |
-> | Velocair | 2-Day | Wed, Oct 14 | $25.36 |
-> | Parcelora | 2-Day | Wed, Oct 14 | $25.62 |
-> | Velocair | Overnight | Tue, Oct 13 | $35.43 |
-> | Parcelora | Next Day | Tue, Oct 13 | $35.96 |
-> 
-> *Note: These are estimated shipping rates for prototyping; final carrier charges may differ.*
-
-### shp-07 run 3 (shipping, EMP-0074)
-
-**Question:** Can we use UPS to ship part DY-100025 to Georgia?
-
-**Why:** facts: missing: ?
-
-**Tools:** quote_shipping
-
-**Answer:**
-
-> We do not use UPS. Our available carriers are Globexa Express, Parcelora, Postara, and Velocair.
-> 
-> For shipping part DY-100025 to Georgia, here are the available options:
-> 
-> | Carrier | Service | Est. Delivery | Cost (USD) |
-> | :--- | :--- | :--- | :--- |
-> | Postara | Ground Saver | Tue, Oct 13 | $4.80 |
-> | Postara | Priority | Wed, Oct 14 | $7.87 |
-> | Velocair | Ground | Tue, Oct 13 | $13.81 |
-> | Parcelora | Ground | Tue, Oct 13 | $14.10 |
-> | Postara | Priority Overnight | Tue, Oct 13 | $18.08 |
-> | Velocair | 2-Day | Wed, Oct 14 | $25.36 |
-> | Parcelora | 2-Day | Wed, Oct 14 | $25.62 |
-> | Velocair | Overnight | Tue, Oct 13 | $35.43 |
-> | Parcelora | Next Day | Tue, Oct 13 | $35.96 |
-> 
-> *Note: These are estimated rates for prototyping; final carrier charges may differ.*
-
-### int-04 run 1 (international, EMP-0074)
-
-**Question:** Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?
-
-**Why:** facts: missing: no | doesn't | does not | don't
-
-**Tools:** search_faq
-
-**Answer:**
-
-> Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information in our FAQ at https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.
-
-### int-04 run 2 (international, EMP-0074)
-
-**Question:** Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?
-
-**Why:** facts: missing: no | doesn't | does not | don't
-
-**Tools:** search_faq
-
-**Answer:**
-
-> Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information on our international shipping policies in our FAQ: https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.
-
-### int-04 run 3 (international, EMP-0074)
-
-**Question:** Does UK dealer D0244 pay VAT at checkout on an order of four DY-100025?
-
-**Why:** facts: missing: no | doesn't | does not | don't
-
-**Tools:** search_faq
-
-**Answer:**
-
-> Dealer accounts pay import charges when goods arrive (DAP), so they do not pay VAT at checkout. You can find more information on our international shipping policies in our FAQ: https://www.gatewellautoparts.example/faq#will-i-pay-import-tax-or-duties.
 
 ### rst-08 run 1 (restricted, EMP-0004)
 
@@ -235,21 +115,35 @@ Re-scored from 2026-10-16_google-gemini-3.1-flash-lite_after.csv with today's qu
 > 
 > If you need further assistance regarding sales history or customer information, please consult your manager.
 
-### hnd-03 run 2 (handoffs, EMP-0074)
+### hnd-03 run 1 (handoffs, EMP-0074)
 
 **Question:** The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?
 
-**Why:** facts: missing: Customer Service
+**Why:** facts: missing: Billing
 
-**Tools:** get_order escalate_to_person contact_team
+**Tools:** get_order escalate_to_person
 
 **Answer:**
 
-> This needs the Billing & Currency team, as they handle payment and refund disputes.
+> This situation requires the Customer Service team. They are currently closed and will reopen on Mon, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
 > 
-> They are currently closed and will reopen on **Mon, Oct 12, 8:00 AM Central**. You can reach them at **(800) 555-0146** or **billing@gatewellautoparts.example**.
+> For more information, you can also check our FAQ page: https://www.gatewellautoparts.example/faq.
 > 
-> For general policy information, you can also check the [FAQ page](https://www.gatewellautoparts.example/faq).
+> Would you like me to prepare a support case for this order so the team can follow up?
+
+### hnd-03 run 3 (handoffs, EMP-0074)
+
+**Question:** The customer on order SO-028153 is furious and says they'll file a chargeback. What do I do?
+
+**Why:** facts: missing: Billing
+
+**Tools:** get_order escalate_to_person
+
+**Answer:**
+
+> This situation needs the Customer Service team. They are currently closed and will reopen on Mon, Oct 12, at 7:00 AM Central. You can reach them at (800) 555-0142, option 1, or via email at support@gatewellautoparts.example.
+> 
+> For more information, you can also check our FAQ page: https://www.gatewellautoparts.example/faq.
 > 
 > Would you like me to prepare a support case for this order so the team can follow up?
 
