@@ -22,6 +22,9 @@ Internal employee app for Gatewell Auto Parts Co. FastAPI backend (`app/`), plai
 - Model and provider come from environment variables (`GATEWELL_MODEL`, `OPENROUTER_API_KEY`). Never hard-code keys.
 - OpenRouter requests send `provider: {"require_parameters": true}` so they only go to providers that support tool calls. Spending limits and privacy settings are managed in the OpenRouter account, not in code.
 
+## Commits
+- Commits: author Paul-Orlando with the GitHub no-reply email; no Co-Authored-By, session or AI-attribution lines in commit messages.
+
 ## Secrets and data
 - Never read, print, or commit `.env` or any API key. Use `.env.example` for placeholders.
 - Data in `data/` is synthetic. Don't add real customer data to the repository.
