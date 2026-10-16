@@ -7,6 +7,8 @@ source (stock levels are visible to every role). Shipping estimates are cost dat
 by auth.redact() for roles that can't see costs; the summary sentence only mentions cost for roles that can.
 Warehouse roles get transfers and substitutes, not reorders (purchasing isn't their call).
 """
+from datetime import date
+
 from . import agent_tools as AT
 from . import db
 from .auth import Employee
@@ -133,6 +135,12 @@ def recommend_for_part(emp: Employee, part_number: str, warehouse: str | None = 
     return out
 
 
+def _day(iso: str) -> str:
+    """"2026-10-14..." -> "Wed, Oct 14", the date style used across the app."""
+    d = date.fromisoformat(iso[:10])
+    return f"{d:%a}, {d:%b} {d.day}"
+
+
 def _words(emp: Employee, r: dict, t: dict, nxt: dict | None, covered: bool) -> tuple[str, str]:
     """A plain-English summary sentence and a short suggestion for tables."""
     wh, avail, back, rp = r["for_warehouse"], r["qty_available"], r["qty_backordered"], r["reorder_point"]
@@ -143,7 +151,7 @@ def _words(emp: Employee, r: dict, t: dict, nxt: dict | None, covered: bool) -> 
         parts[0] += f", {back} backordered"
     parts[0] += "."
     if nxt:
-        eta = nxt["eta_destination_local"][:10]
+        eta = _day(nxt["eta_destination_local"])
         parts.append(f"{nxt['quantity']} arrive{'s' if nxt['quantity'] == 1 else ''} {eta} by {nxt['mode'].lower()}" +
                      (f" ({nxt['status'].lower()})" if nxt["status"] != "In Transit" else "") + ".")
     short = []

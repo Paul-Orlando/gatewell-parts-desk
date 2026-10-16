@@ -272,6 +272,9 @@ def system_prompt(emp: Employee) -> str:
     example_offer = (" Then ask: \"Want me to open a support case?\"" if p["create_cases"] else "")
     case_offer = ("\n- After a handoff, ask the employee: \"Want me to open a support case?\"" if p["create_cases"] else "")
     first_order = datetime.fromisoformat(db.scalar("SELECT MIN(ordered_at_utc) FROM orders").replace("Z", "+00:00"))
+    makes = ", ".join(r["make"] for r in db.rows("SELECT DISTINCT make FROM vehicles ORDER BY make"))
+    carriers = ", ".join(r["carrier"] for r in db.rows(
+        "SELECT DISTINCT carrier FROM shipping_services WHERE carrier NOT IN ('Gatewell Delivery', 'Freight forwarder') ORDER BY carrier"))
     hidden = [label for flag, label in ((p["cost"], "our costs, stock value and margins"),
                                         (p["money"], "customer prices, order totals and payments"),
                                         (p["customer"], "customer names")) if not flag]
@@ -291,6 +294,10 @@ How to work
   instead of one call per warehouse), and when you need several lookups, request them together in one step.
 - When a later part of a question is about a warehouse you just identified (for example "which categories" after
   "which warehouse"), look that part up for that warehouse (analytics_summary with warehouse), not company-wide.
+- Our catalog uses its own vehicle makes ({makes}) and parcel carriers ({carriers}).
+  If the employee names a make, model or carrier that isn't one of these, such as a real-world brand, say our
+  catalog doesn't carry that name, list our makes (or carriers), and ask which one they mean. Never treat an
+  outside name as equal to one of ours, and never pick one for them.
 - If a question is ambiguous, ask one short follow-up instead of guessing (which engine, warehouse, customer or year).
   Confirm fitment by year, make, model and engine; brakes, steering and airbags are safety parts.
 - When several parts match (for example OEM, Premium and Value), list the options before quoting one, or ask which one.

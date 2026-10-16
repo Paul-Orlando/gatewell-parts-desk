@@ -271,7 +271,7 @@ async function partDrawer(pn) {
         <button class="btn" type="submit">Get rates</button>
       </form><div id="quote-out"></div></section>
     <section><h3>Fits</h3><ul class="small">${d.fits.map((f) => `<li>${esc(f.year_from)}–${esc(f.year_to)} ${esc(f.make)} ${esc(f.model)} <span class="muted">${esc(f.engines)}</span></li>`).join("")}</ul></section>
-    ${d.equivalents.length ? `<section><h3>Equivalent parts</h3><div class="table-wrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Quality</th><th class="num">List price</th><th class="num">Available</th></tr></thead><tbody>
+    ${d.equivalents.length ? `<section><h3>Equivalent parts</h3><div class="table-wrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Quality</th><th class="num">List price</th><th class="num">Available (all warehouses)</th></tr></thead><tbody>
       ${d.equivalents.map((x) => `<tr class="clickable" data-pn="${esc(x.part_number)}"><td class="pn">${esc(x.part_number)}</td><td>${esc(x.brand)}</td><td>${esc(x.quality_tier)}</td><td class="num">${usd(x.list_price_usd)}</td><td class="num">${n(x.qty_available)}</td></tr>`).join("")}
       </tbody></table></div></section>` : ""}
     <section><h3>Units sold per month</h3><p class="sub small muted">Last 12 months, ${esc(S.emp.scope_label)}${d.monthly_sales.some((m) => m.units) ? "" : ". No sales in this period"}</p>
@@ -314,8 +314,8 @@ async function suggestions(pn, wh = "") {
       </tbody></table></div>` : ""}
     ${ro ? `<h4 class="small">Reorder</h4>${facts([["Suggested", ro.covered_by_inbound ? '<span class="status info">&#8595; Covered by inbound</span>' : `${n(ro.suggested_qty)} units`],
       ["Supplier", `${esc(ro.supplier_name)}, ${esc(ro.country)}`], ["Typical lead time", `About ${n(ro.lead_time_days)} days`],
-      ...(ro.next_eta_local ? [["Next inbound", `${n(ro.quantity)} on ${esc(ro.next_eta_local.slice(0, 10))} (${esc(ro.mode)})`]] : [])])}` : ""}
-    ${r.substitutes && r.substitutes.length ? `<h4 class="small">Substitutes in stock at ${esc(r.for_warehouse)}</h4><div class="table-wrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Quality</th><th class="num">List price</th><th class="num">Available</th></tr></thead><tbody>
+      ...(ro.next_eta_local ? [["Next inbound", `${n(ro.quantity)} on ${esc(dayLabel(ro.next_eta_local.slice(0, 10)))} (${esc(ro.mode)})`]] : [])])}` : ""}
+    ${r.substitutes && r.substitutes.length ? `<h4 class="small">Substitutes in stock at ${esc(r.for_warehouse)}</h4><div class="table-wrap"><table><thead><tr><th>Part</th><th>Brand</th><th>Quality</th><th class="num">List price</th><th class="num">Available at ${esc(r.for_warehouse)}</th></tr></thead><tbody>
       ${r.substitutes.map((x) => `<tr class="clickable" data-pn="${esc(x.part_number)}"><td class="pn">${esc(x.part_number)}</td><td>${esc(x.brand)}</td><td>${esc(x.quality_tier)}</td><td class="num">${usd(x.list_price_usd)}</td><td class="num">${n(x.qty_available)}</td></tr>`).join("")}
       </tbody></table></div>` : ""}
     <p class="lock" style="margin:10px 0 0">${esc(r.label)}</p>`;

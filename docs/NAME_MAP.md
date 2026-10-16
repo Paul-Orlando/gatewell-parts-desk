@@ -105,7 +105,7 @@ This is the one place outside `data_generator/` where the real names may appear.
 | Hyundai | Elantra | Daeyon | Sonnel |
 | Hyundai | Tucson | Daeyon | Varenta |
 | Hyundai | Santa Fe | Daeyon | Delmora |
-| Hyundai | Sonata | Daeyon | Cadena |
+| Hyundai | Sonata | Daeyon | Aurelle |
 | Kia | Sorento | Hanvel | Morvale |
 | Kia | Sportage | Hanvel | Juvo |
 | Kia | Forte | Hanvel | Pelto |

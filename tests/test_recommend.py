@@ -12,7 +12,7 @@ def test_backordered_part_covered_by_inbound_gets_no_reorder(client, ids):
     assert r["for_warehouse"] == "ATL" and r["qty_backordered"] == 11 and r["qty_in_transit"] == 120
     assert r["reorder"]["covered_by_inbound"] is True and r["reorder"]["suggested_qty"] == 0
     assert r["reorder"]["quantity"] == 120 and r["reorder"]["next_eta_local"].startswith("2026-10-14")
-    assert "120 arrive 2026-10-14 by air" in r["summary"] and "no reorder is needed" in r["summary"]
+    assert "120 arrive Wed, Oct 14 by air" in r["summary"] and "no reorder is needed" in r["summary"]
     assert r["suggestion"] == "Covered by inbound 120" and r["label"] == recommend.LABEL
 
 

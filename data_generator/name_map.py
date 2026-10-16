@@ -52,6 +52,13 @@ PART_PREFIX = {
 PART_NUMBER_START = 100001  # numbered in part_id order within each prefix
 FICTIONAL_OEM_BRANDS = set(OEM_BRAND.values())
 
+# Family name shown in engine fit text ("Halvard 5.0L V8 engine"), per new family code.
+FAMILY_LABEL = {
+    "HAL": "Halvard", "CAS": "Castellan", "IRN": "Ironhorn", "KEN": "Kenzai", "FER": "Ferra Motors",
+    "SOR": "Sorano", "DAE": "Daeyon/Hanvel", "AOK": "Aokiri", "VOL": "Voltrane",
+}
+assert {f"{v} OEM" for v in FAMILY_LABEL.values()} == FICTIONAL_OEM_BRANDS
+
 # Models, keyed by (real make, real model). Body type, years, engines and
 # popularity are unchanged; names hint at the vehicle type.
 MODEL = {
@@ -117,7 +124,7 @@ MODEL = {
     ("Hyundai", "Elantra"): "Sonnel",
     ("Hyundai", "Tucson"): "Varenta",
     ("Hyundai", "Santa Fe"): "Delmora",
-    ("Hyundai", "Sonata"): "Cadena",
+    ("Hyundai", "Sonata"): "Aurelle",
     # Hanvel
     ("Kia", "Sorento"): "Morvale",
     ("Kia", "Sportage"): "Juvo",
@@ -249,6 +256,11 @@ def translate(tables):
             assert p["part_number"] not in pn
             pn[p["part_number"]] = f"{pre}-{counters[pre]}"
 
+    # Engine fit text: family + engine, no internal code. Each must read differently.
+    engine_text = {code: f"{FAMILY_LABEL[FAMILY[code.split('-')[0]]]} {ENGINE_NAME.get(name, name)} engine"
+                   for code, name in engines.items()}
+    assert len(set(engine_text.values())) == len(engine_text), "two engines would read alike"
+
     for p in T["parts"]:
         if p["fits_scope"] == "platform":
             new_key, new_sum, old_sum = plat[p["fits_key"]]
@@ -256,7 +268,7 @@ def translate(tables):
             name = engines[p["fits_key"]]
             new_key = engine_code(p["fits_key"])
             old_sum = f"{name} engine ({p['fits_key']})"
-            new_sum = f"{ENGINE_NAME.get(name, name)} engine ({new_key})"
+            new_sum = engine_text[p["fits_key"]]
         assert p["fits_summary"] == old_sum, (p["part_id"], p["fits_summary"])
         p.update(part_number=pn.get(p["part_number"], p["part_number"]), brand=OEM_BRAND.get(p["brand"], p["brand"]),
                  oem_family=FAMILY[p["oem_family"]], fits_key=new_key, fits_summary=new_sum)

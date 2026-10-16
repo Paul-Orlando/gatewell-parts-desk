@@ -183,6 +183,18 @@ def test_prompt_rules_from_the_retest(ids):
     assert "has a note saying how many days late" in assistant.TOOL_BY_NAME["find_in_transit"]["description"]
 
 
+def test_prompt_asks_which_of_our_names_when_a_real_one_is_used(ids):
+    """Post-rename: a real make, model or carrier is never treated as one of ours; the assistant lists ours and asks."""
+    from tests.test_no_real_brands import M
+    for role in ("cs", "cs_sup", "warehouse", "director"):
+        text = assistant.system_prompt(load_employee(ids[role]))
+        assert "say our\n  catalog doesn't carry that name, list our makes (or carriers), and ask which one they mean" in text
+        assert "Never treat an\n  outside name as equal to one of ours" in text
+        listed = text[text.index("Our catalog uses its own vehicle makes"):text.index("If the employee names a make")]
+        assert all(make in listed for make in M.FICTIONAL_MAKES)
+        assert all(carrier in listed for carrier in M.FICTIONAL_CARRIERS)
+
+
 def test_prompt_examples_use_plain_words(ids):
     """Step 3: worked examples for asking the engine, listing options, taxed totals and handoffs, with no tool,
     section or data values in them (the numbers must come from lookups, not from the prompt)."""
