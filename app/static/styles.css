@@ -20,6 +20,8 @@
   --accent: #24609a;
   --accent-soft: #e2edf7;
   --on-accent: #ffffff;
+  --fill: #24609a;          /* filled buttons and the employee's chat bubbles */
+  --on-fill: #ffffff;
   --rail: #1b2733;
   --rail-ink: #c9d4de;
   --rail-active: #ffffff;
@@ -36,7 +38,7 @@
   :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: #11181f; --surface: #18222c; --surface-2: #1e2a35; --ink: #e4e9ee; --ink-2: #aab6c2; --ink-3: #82909d;
-    --rule: #2b3946; --rule-strong: #3c4c5b; --accent: #6aa6dc; --accent-soft: #1f3447; --on-accent: #0c1218; --rail: #0c1218; --rail-ink: #a9b5c0;
+    --rule: #2b3946; --rule-strong: #3c4c5b; --accent: #6aa6dc; --accent-soft: #1f3447; --on-accent: #0c1218; --fill: #3470aa; --on-fill: #ffffff; --rail: #0c1218; --rail-ink: #a9b5c0;
     --good: #5cc283; --good-bg: #16301f; --warn: #f0c04a; --warn-bg: #33290f; --bad: #f08a80; --bad-bg: #3a1d1a;
     --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --shadow: 0 8px 28px rgba(0,0,0,.5);
   }
@@ -44,7 +46,7 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --bg: #11181f; --surface: #18222c; --surface-2: #1e2a35; --ink: #e4e9ee; --ink-2: #aab6c2; --ink-3: #82909d;
-  --rule: #2b3946; --rule-strong: #3c4c5b; --accent: #6aa6dc; --accent-soft: #1f3447; --on-accent: #0c1218; --rail: #0c1218; --rail-ink: #a9b5c0;
+  --rule: #2b3946; --rule-strong: #3c4c5b; --accent: #6aa6dc; --accent-soft: #1f3447; --on-accent: #0c1218; --fill: #3470aa; --on-fill: #ffffff; --rail: #0c1218; --rail-ink: #a9b5c0;
   --good: #5cc283; --good-bg: #16301f; --warn: #f0c04a; --warn-bg: #33290f; --bad: #f08a80; --bad-bg: #3a1d1a;
   --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70; --shadow: 0 8px 28px rgba(0,0,0,.5);
 }
@@ -88,8 +90,8 @@ nav svg { width: 18px; height: 18px; flex: none; }
 .page-intro { color: var(--ink-2); margin: 0 0 16px; max-width: 72ch; }
 
 /* ---------- controls */
-.btn { font: 600 14px var(--font); border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); border-radius: 6px; padding: 8px 14px; cursor: pointer; }
-.btn.ghost { background: transparent; color: var(--accent); }
+.btn { font: 600 14px var(--font); border: 1px solid var(--fill); background: var(--fill); color: var(--on-fill); border-radius: 6px; padding: 8px 14px; cursor: pointer; }
+.btn.ghost { background: transparent; color: var(--accent); border-color: var(--accent); }
 .btn.small { padding: 5px 10px; font-size: 13px; }
 .btn:disabled { opacity: .5; cursor: default; }
 .icon-btn { background: none; border: 0; color: inherit; font-size: 24px; line-height: 1; cursor: pointer; padding: 4px 8px; border-radius: 6px; }
@@ -101,7 +103,7 @@ input[type="checkbox"] { min-height: 0; }
 .seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 6px; overflow: hidden; }
 .seg button { font: 500 13px var(--font); border: 0; background: var(--surface); color: var(--ink-2); padding: 7px 12px; cursor: pointer; }
 .seg button + button { border-left: 1px solid var(--rule-strong); }
-.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.seg button[aria-pressed="true"] { background: var(--fill); color: var(--on-fill); }
 
 /* ---------- tables */
 .table-wrap { background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; overflow: auto; }
@@ -149,7 +151,7 @@ tbody tr.clickable:hover { background: var(--accent-soft); }
 .chat-col { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--rule); border-radius: 8px; min-height: 0; }
 .chat-log { flex: 1; overflow: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
 .msg { max-width: 76ch; line-height: 1.55; }
-.msg.user { align-self: flex-end; background: var(--accent); color: var(--on-accent); padding: 10px 14px; border-radius: 14px 14px 4px 14px; }
+.msg.user { align-self: flex-end; background: var(--fill); color: var(--on-fill); padding: 10px 14px; border-radius: 14px 14px 4px 14px; }
 .msg.bot { align-self: flex-start; }
 .msg.bot .who { font-family: var(--cond); font-weight: 700; color: var(--ink-2); margin-bottom: 2px; }
 .msg.bot table { margin: 8px 0; font-size: 14px; border: 1px solid var(--rule); }
