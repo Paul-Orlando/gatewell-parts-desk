@@ -1,5 +1,8 @@
 # Gatewell Parts Desk
 
+**Live demo:** https://web-production-25c5.up.railway.app
+(Fictional company and data. The assistant allows 5 questions per visitor.)
+
 An internal web app for **Gatewell Auto Parts Co.**, a fictional U.S. distributor of OEM and aftermarket car parts with 11 warehouses and customers at home and abroad.
 
 Customer service agents, warehouse staff and managers use it to:
@@ -42,7 +45,7 @@ Customer service agents, warehouse staff and managers use it to:
 
 All permission checks run on the server. The browser only hides tabs a role can't use.
 
-## Run it on your computer
+## Run it locally
 
 You need **Python 3.11+**. The assistant needs an **OpenRouter API key**; every other tab works without one.
 
