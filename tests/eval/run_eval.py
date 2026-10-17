@@ -9,7 +9,11 @@ script, not a test, and pytest doesn't collect it. tests/test_eval_set.py checks
     .venv\\Scripts\\python tests\\eval\\run_eval.py                        # all 50 questions x 3 runs
     .venv\\Scripts\\python tests\\eval\\run_eval.py --group restricted
     .venv\\Scripts\\python tests\\eval\\run_eval.py --only ana-01 shp-08
-    .venv\\Scripts\\python tests\\eval\\run_eval.py --model google/gemini-3.1-flash --price-in 0.5 --price-out 3
+    .venv\\Scripts\\python tests\\eval\\run_eval.py --list-models gemini       # ids, prices, tool support
+    .venv\\Scripts\\python tests\\eval\\run_eval.py --model google/gemini-3-flash-preview
+
+Prices come from OpenRouter's public model list (no key sent); --price-in / --price-out override them, and the
+built-in Flash-Lite price is the fallback when the list can't be reached.
 
 The API key comes from OPENROUTER_API_KEY in the environment, as in the app; this script never reads .env. The demo
 limit is switched off for the run, and audit entries go to logs/eval/ so they stay out of the real audit log.
@@ -37,7 +41,8 @@ RESULTS_DIR = EVAL_DIR / "results"
 LOG_DIR = ROOT / "logs" / "eval"
 sys.path.insert(0, str(ROOT))
 
-# USD per 1M tokens (input, output). Override with --price-in / --price-out.
+# Fallback USD per 1M tokens (input, output), used only when OpenRouter's model list can't be reached.
+MODELS_URL = "https://openrouter.ai/api/v1/models"
 PRICES = {
     "google/gemini-3.1-flash-lite": (0.25, 1.50),
 }
@@ -164,6 +169,46 @@ def p95(values):
     return v[min(len(v) - 1, math.ceil(0.95 * len(v)) - 1)] if v else 0
 
 
+def fetch_models() -> list[dict]:
+    """OpenRouter's public model list: [{id, price_in, price_out (USD per 1M tokens), tools (bool)}].
+    A plain GET with no key or auth header; the API key is never sent here."""
+    import urllib.request
+    req = urllib.request.Request(MODELS_URL, headers={"User-Agent": "gatewell-eval"})
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        data = json.load(resp).get("data") or []
+    out = []
+    for m in data:
+        pr = m.get("pricing") or {}
+        per_m = lambda v: round(float(v) * 1e6, 4) if v not in (None, "") and float(v) >= 0 else None
+        out.append(dict(id=m.get("id", ""), name=m.get("name", ""), price_in=per_m(pr.get("prompt")),
+                        price_out=per_m(pr.get("completion")), tools="tools" in (m.get("supported_parameters") or [])))
+    return out
+
+
+def list_models(term: str) -> int:
+    rows = [m for m in fetch_models() if term.lower() in (m["id"] + " " + m["name"]).lower()]
+    if not rows:
+        print(f"No OpenRouter models match '{term}'.")
+        return 2
+    print(f"{'id':48} {'in $/1M':>9} {'out $/1M':>9}  tools")
+    for m in sorted(rows, key=lambda m: m["id"]):
+        f = lambda v: "?" if v is None else f"{v:g}"
+        print(f"{m['id']:48} {f(m['price_in']):>9} {f(m['price_out']):>9}  {'yes' if m['tools'] else 'NO'}")
+    return 0
+
+
+def model_prices(model: str) -> tuple[float | None, float | None, str]:
+    """(input, output, source): OpenRouter's current price, else the built-in fallback."""
+    try:
+        for m in fetch_models():
+            if m["id"] == model and m["price_in"] is not None:
+                return m["price_in"], m["price_out"], "OpenRouter model list"
+    except Exception as ex:
+        print(f"Couldn't read OpenRouter's model list ({type(ex).__name__}); using the built-in price if there is one.")
+    p_in, p_out = PRICES.get(model, (None, None))
+    return p_in, p_out, "built-in fallback"
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--runs", type=int, default=3, help="runs per question (default 3)")
@@ -173,6 +218,8 @@ def main() -> int:
     ap.add_argument("--model", help="model id (default: GATEWELL_MODEL, else the app's default)")
     ap.add_argument("--price-in", type=float, help="USD per 1M input tokens")
     ap.add_argument("--price-out", type=float, help="USD per 1M output tokens")
+    ap.add_argument("--list-models", metavar="TERM", help="list OpenRouter models matching TERM (id, prices, tool "
+                                                          "support) and exit; no key needed, no model calls")
     ap.add_argument("--questions", default=str(EVAL_DIR / "questions.yaml"))
     ap.add_argument("--rescore", metavar="CSV", help="re-score the saved answers in a results CSV with today's questions.yaml "
                                                      "(no model calls); writes <name>_rescored.csv and .md")
@@ -183,6 +230,8 @@ def main() -> int:
     os.environ["GATEWELL_LOG_DIR"] = str(LOG_DIR)
     if args.model:
         os.environ["GATEWELL_MODEL"] = args.model
+    if args.list_models:
+        return list_models(args.list_models)
     if args.rescore:
         return rescore(Path(args.rescore), Path(args.questions))
     if not os.environ.get("OPENROUTER_API_KEY"):
@@ -206,14 +255,16 @@ def main() -> int:
         return 2
 
     model = assistant.MODEL
-    p_in, p_out = PRICES.get(model, (None, None))
+    p_in, p_out, price_source = model_prices(model)
+    if args.price_in is not None or args.price_out is not None:
+        price_source = "command line"
     p_in, p_out = args.price_in if args.price_in is not None else p_in, args.price_out if args.price_out is not None else p_out
     internal = [t["name"] for t in assistant.TOOLS] + list(analytics.SECTIONS)
     audit_path = LOG_DIR / "assistant_audit.jsonl"
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     print(f"Model: {model}   Questions: {len(items)}   Runs each: {args.runs}"
-          + (f"   Prices: ${p_in}/${p_out} per 1M tokens" if p_in is not None else "   Prices: unknown (pass --price-in/--price-out)"))
+          + (f"   Prices: ${p_in}/${p_out} per 1M tokens ({price_source})" if p_in is not None else "   Prices: unknown (pass --price-in/--price-out)"))
     rows, started = [], time.time()
     for q in items:
         emp = load_employee(q["employee_id"])

@@ -133,3 +133,22 @@ def test_final_scoring_rules_on_known_answers():
     # decline phrases: "cannot provide unit costs" is a refusal; "can't give a delivery date" is not
     assert R.REFUSAL.search(R.norm("I cannot provide unit costs, margins, or customer names."))
     assert not R.REFUSAL.search(R.norm("I can't give a delivery date yet; it ships after stock arrives."))
+
+
+def test_model_prices_come_from_openrouter_with_a_fallback(monkeypatch, capsys):
+    """--model runs use OpenRouter's listed price; the built-in Flash-Lite price is used only when the list fails.
+    (No network here: fetch_models is replaced.)"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("run_eval", ROOT / "tests" / "eval" / "run_eval.py")
+    R = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(R)
+    listed = [dict(id="google/gemini-3-flash-preview", name="Gemini 3 Flash", price_in=0.5, price_out=3.0, tools=True)]
+    monkeypatch.setattr(R, "fetch_models", lambda: listed)
+    assert R.model_prices("google/gemini-3-flash-preview") == (0.5, 3.0, "OpenRouter model list")
+    assert R.list_models("3-flash") == 0 and "google/gemini-3-flash-preview" in capsys.readouterr().out
+
+    def offline():
+        raise OSError("no network")
+    monkeypatch.setattr(R, "fetch_models", offline)
+    assert R.model_prices("google/gemini-3.1-flash-lite") == (0.25, 1.50, "built-in fallback")
+    assert R.model_prices("some/other-model")[:2] == (None, None)
